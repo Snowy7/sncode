@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 import Anthropic from "@anthropic-ai/sdk";
 import OpenAI from "openai";
 import { runAgent } from "./agent";
-import { getProviderCredential, setProviderCredential } from "./credentials";
+import { clearAllCredentials, getProviderCredential, setProviderCredential } from "./credentials";
 import { exchangeAnthropicCode, pollCodexDeviceAuth, startAnthropicOAuth, startCodexDeviceFlow, isOAuthCredential, parseOAuthCredential, refreshAnthropicToken, refreshCodexToken } from "./oauth";
 import { discoverSkills, loadSkillContent, installSkill, deleteSkill } from "./skills";
 import { Store } from "./store";
@@ -61,6 +61,16 @@ function createWindow() {
 
   mainWindow.webContents.on("will-navigate", (event) => {
     event.preventDefault();
+  });
+
+  // DevTools shortcuts: F12, Ctrl+Shift+I, Cmd+Option+I
+  mainWindow.webContents.on("before-input-event", (_event, input) => {
+    if (input.key === "F12" && input.type === "keyDown") {
+      mainWindow?.webContents.toggleDevTools();
+    }
+    if (input.key === "I" && input.type === "keyDown" && input.shift && (input.control || input.meta)) {
+      mainWindow?.webContents.toggleDevTools();
+    }
   });
 
   if (isDev) {
@@ -226,6 +236,21 @@ function registerIpc() {
       throw new Error("Only https URLs are allowed");
     }
     await shell.openExternal(urlStr);
+  });
+
+  ipcMain.handle("app:clear-all-data", async () => {
+    // Wipe keychain credentials
+    await clearAllCredentials();
+    // Cancel all running agents
+    for (const [id, controller] of runControllers) {
+      controller.abort();
+      runControllers.delete(id);
+    }
+    return store.resetAll();
+  });
+
+  ipcMain.handle("app:open-devtools", () => {
+    mainWindow?.webContents.openDevTools();
   });
 
   ipcMain.handle("git:branches", async (_event, projectPath: unknown) => {

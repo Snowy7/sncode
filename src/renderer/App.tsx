@@ -1759,7 +1759,7 @@ export default function App() {
       {/* ─── Sidebar ─── */}
       <aside className="flex w-[260px] shrink-0 flex-col">
         <div className="drag-region flex h-12 shrink-0 items-center px-4 pt-1">
-          <div className="no-drag flex items-center gap-1.5 pl-[52px]">
+          <div className="no-drag flex items-center gap-1.5">
             <span className="text-[14px] font-bold tracking-tight"><span className="text-white">Sn</span><span className="text-[#555]">Code</span></span>
           </div>
           <button onClick={() => setShowSettings(true)} className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-lg text-[#555] transition hover:bg-[#1e1e1e] hover:text-[#999]" title="Settings"><GearIcon /></button>
@@ -2266,7 +2266,7 @@ export default function App() {
       )}
 
       {showSettings && (
-        <SettingsModal providers={state.providers} settings={state.settings} projectId={selProjectId} projectPath={selProject?.folderPath ?? null} onClose={() => setShowSettings(false)} onUpdateProvider={updateProvider} onSaveCredential={saveCredential} onUpdateSettings={updateSettings} />
+        <SettingsModal providers={state.providers} settings={state.settings} projectId={selProjectId} projectPath={selProject?.folderPath ?? null} onClose={() => setShowSettings(false)} onUpdateProvider={updateProvider} onSaveCredential={saveCredential} onUpdateSettings={updateSettings} onClearAllData={async () => { const s = await window.sncode.clearAllData(); setState(s); setSelProjectId(null); setSelThreadId(null); setExpandedProjects(new Set()); setShowSettings(false); }} />
       )}
     </div>
   );

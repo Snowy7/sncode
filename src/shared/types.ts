@@ -276,6 +276,10 @@ export interface SncodeApi {
   getGitDiff: (projectPath: string) => Promise<GitDiffEntry[]>;
   /** Run a git action (commit, pull, push, init, etc.) */
   gitAction: (projectPath: string, action: string, args?: Record<string, string>) => Promise<{ success: boolean; message: string }>;
+  /** Clear all data (projects, threads, messages, settings) and reset to defaults */
+  clearAllData: () => Promise<AppState>;
+  /** Open Chromium DevTools */
+  openDevTools: () => Promise<void>;
   on: <T extends keyof AgentEventMap>(
     channel: T,
     listener: (payload: AgentEventMap[T]) => void

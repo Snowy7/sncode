@@ -123,6 +123,13 @@ export class Store {
     return structuredClone(this.state.settings);
   }
 
+  /** Wipe all data and reset to factory defaults */
+  resetAll(): AppState {
+    this.state = structuredClone(defaultState);
+    this.persist();
+    return this.getState();
+  }
+
   updateSettings(updates: Partial<AgentSettings>): AgentSettings {
     this.state.settings = { ...this.state.settings, ...updates };
     this.persist();

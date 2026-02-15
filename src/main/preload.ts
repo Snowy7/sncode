@@ -31,6 +31,8 @@ const api: SncodeApi = {
   readFileContent: (projectPath: string, relativePath: string): Promise<string> => ipcRenderer.invoke("file:read", projectPath, relativePath),
   getGitDiff: (projectPath: string): Promise<GitDiffEntry[]> => ipcRenderer.invoke("git:diff", projectPath),
   gitAction: (projectPath: string, action: string, args?: Record<string, string>): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke("git:action", projectPath, action, args),
+  clearAllData: () => ipcRenderer.invoke("app:clear-all-data"),
+  openDevTools: () => ipcRenderer.invoke("app:open-devtools"),
   on: <T extends keyof AgentEventMap>(channel: T, listener: (payload: AgentEventMap[T]) => void) => {
     const wrapped = (_event: unknown, payload: AgentEventMap[T]) => listener(payload);
     ipcRenderer.on(channel, wrapped);
