@@ -16,6 +16,7 @@ const DEFAULT_SETTINGS: AgentSettings = {
   maxConcurrentTasks: 3,
   theme: "dark",
   thinkingLevel: "none",
+  onboardingComplete: false,
 };
 
 const defaultProviders: ProviderConfig[] = [

@@ -51,8 +51,8 @@ hljs.registerLanguage("cs", csharp);
 hljs.registerLanguage("cpp", cpp);
 hljs.registerLanguage("c", cpp);
 
-import { AgentSettings, AppState, FileTreeEntry, GitDiffEntry, GitStatusInfo, ImageAttachment, ImageMediaType, ProviderConfig, Project, ThinkingLevel, ThreadMessage, TodoItem } from "../shared/types";
-import { ALL_MODELS, labelForModelId, providerForModelId } from "../shared/models";
+import { AgentSettings, AppState, FileTreeEntry, GitDiffEntry, GitStatusInfo, ImageAttachment, ImageMediaType, ProviderId, ProviderConfig, Project, ThinkingLevel, ThreadMessage, TodoItem } from "../shared/types";
+import { ALL_MODELS, API_KEY_URLS, labelForModelId, providerForModelId } from "../shared/models";
 import SettingsModal from "./SettingsModal";
 
 /* ── constants ── */
@@ -62,7 +62,7 @@ const emptyState: AppState = {
   threads: [],
   messages: [],
   providers: [],
-  settings: { maxTokens: 16384, maxToolSteps: 25, subAgentModel: "", subAgentMaxTokens: 8192, subAgentMaxToolSteps: 15, maxConcurrentTasks: 3, theme: "dark", thinkingLevel: "none" },
+  settings: { maxTokens: 16384, maxToolSteps: 25, subAgentModel: "", subAgentMaxTokens: 8192, subAgentMaxToolSteps: 15, maxConcurrentTasks: 3, theme: "dark", thinkingLevel: "none", onboardingComplete: false },
   projectSkills: [],
 };
 
@@ -1151,6 +1151,228 @@ function ThinkingLevelPicker({ level, provider, onChange }: { level: string; pro
   );
 }
 
+/* ── Onboarding ── */
+
+type OnboardingStep = "welcome" | "provider" | "apikey" | "complete";
+
+function OnboardingModal({
+  onSaveCredential,
+  onComplete,
+}: {
+  onSaveCredential: (providerId: string, credential: string) => Promise<void>;
+  onComplete: () => void;
+}) {
+  const [step, setStep] = useState<OnboardingStep>("welcome");
+  const [selectedProvider, setSelectedProvider] = useState<ProviderId>("anthropic");
+  const [apiKey, setApiKey] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSaveKey() {
+    if (!apiKey.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSaveCredential(selectedProvider, apiKey.trim());
+      setStep("complete");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save credential");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="flex h-screen items-center justify-center bg-[#141414]">
+      <div className="w-[460px] rounded-2xl border border-[#222] bg-[#1a1a1a] p-8 shadow-2xl shadow-black/40">
+
+        {/* Step: Welcome */}
+        {step === "welcome" && (
+          <div className="text-center">
+            <div className="mb-1 text-[28px] font-bold tracking-tight">
+              <span className="text-white">Sn</span><span className="text-[#555]">Code</span>
+            </div>
+            <p className="mb-6 text-[13px] text-[#606060]">AI-powered coding agent for your desktop</p>
+
+            <div className="mb-8 space-y-3 text-left">
+              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                </div>
+                <div>
+                  <div className="text-[13px] font-medium text-[#ccc]">Powerful AI agent</div>
+                  <div className="text-[11px] text-[#555]">Read, write, edit files, run commands, and more</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                </div>
+                <div>
+                  <div className="text-[13px] font-medium text-[#ccc]">Multi-model support</div>
+                  <div className="text-[11px] text-[#555]">Claude (Anthropic) and Codex (OpenAI) models</div>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                </div>
+                <div>
+                  <div className="text-[13px] font-medium text-[#ccc]">Secure by default</div>
+                  <div className="text-[11px] text-[#555]">API keys stored in your OS keychain</div>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setStep("provider")}
+              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+            >
+              Get started
+            </button>
+            <button
+              onClick={onComplete}
+              className="mt-3 w-full rounded-xl px-4 py-2 text-[12px] text-[#505050] transition hover:text-[#808080]"
+            >
+              Skip for now
+            </button>
+          </div>
+        )}
+
+        {/* Step: Pick provider */}
+        {step === "provider" && (
+          <div>
+            <button onClick={() => setStep("welcome")} className="mb-4 flex items-center gap-1 text-[12px] text-[#555] transition hover:text-[#999]">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
+              Back
+            </button>
+            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">Choose a provider</h2>
+            <p className="mb-5 text-[12px] text-[#555]">Select which AI provider you want to use. You can add more later in Settings.</p>
+
+            <div className="mb-6 space-y-2">
+              <button
+                onClick={() => setSelectedProvider("anthropic")}
+                className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
+                  selectedProvider === "anthropic"
+                    ? "border-[#444] bg-[#1e1e1e]"
+                    : "border-[#252525] bg-[#161616] hover:border-[#333]"
+                }`}
+              >
+                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "anthropic" ? "bg-[#333] text-white" : "bg-[#222] text-[#666]"}`}>
+                  <span className="text-[14px] font-bold">A</span>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-[#ccc]">Anthropic</div>
+                  <div className="text-[11px] text-[#555]">Claude Opus, Sonnet, and Haiku models</div>
+                </div>
+                {selectedProvider === "anthropic" && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#e0e0e0" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#e0e0e0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+              <button
+                onClick={() => setSelectedProvider("codex")}
+                className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
+                  selectedProvider === "codex"
+                    ? "border-[#444] bg-[#1e1e1e]"
+                    : "border-[#252525] bg-[#161616] hover:border-[#333]"
+                }`}
+              >
+                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "codex" ? "bg-[#333] text-white" : "bg-[#222] text-[#666]"}`}>
+                  <span className="text-[14px] font-bold">O</span>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-[#ccc]">OpenAI</div>
+                  <div className="text-[11px] text-[#555]">Codex 5.3 and Codex Mini models</div>
+                </div>
+                {selectedProvider === "codex" && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#e0e0e0" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#e0e0e0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setStep("apikey")}
+              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* Step: Enter API key */}
+        {step === "apikey" && (
+          <div>
+            <button onClick={() => setStep("provider")} className="mb-4 flex items-center gap-1 text-[12px] text-[#555] transition hover:text-[#999]">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
+              Back
+            </button>
+            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">
+              Enter your {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
+            </h2>
+            <p className="mb-4 text-[12px] text-[#555]">
+              Your key is stored securely in your OS keychain and never sent anywhere except to {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"}.
+            </p>
+
+            <div className="mb-2">
+              <input
+                type="password"
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); setError(""); }}
+                onKeyDown={(e) => { if (e.key === "Enter" && apiKey.trim()) void handleSaveKey(); }}
+                placeholder={selectedProvider === "anthropic" ? "sk-ant-..." : "sk-..."}
+                className="w-full rounded-lg border border-[#333] bg-[#141414] px-3.5 py-2.5 text-[13px] text-[#e0e0e0] outline-none placeholder:text-[#333] focus:border-[#555]"
+                autoFocus
+              />
+            </div>
+
+            {error && (
+              <p className="mb-2 text-[11px] text-red-400">{error}</p>
+            )}
+
+            <a
+              href="#"
+              onClick={(e) => { e.preventDefault(); void window.sncode.openExternal(API_KEY_URLS[selectedProvider] || ""); }}
+              className="mb-5 inline-block text-[11px] text-[#555] underline decoration-[#333] transition hover:text-[#999]"
+            >
+              Get an API key from {selectedProvider === "anthropic" ? "console.anthropic.com" : "platform.openai.com"}
+            </a>
+
+            <button
+              onClick={handleSaveKey}
+              disabled={!apiKey.trim() || saving}
+              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white disabled:opacity-30"
+            >
+              {saving ? "Saving..." : "Save & continue"}
+            </button>
+          </div>
+        )}
+
+        {/* Step: Complete */}
+        {step === "complete" && (
+          <div className="text-center">
+            <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5"/>
+              </svg>
+            </div>
+            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">You're all set!</h2>
+            <p className="mb-6 text-[13px] text-[#555]">
+              Your {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key has been saved. You can add more providers anytime from Settings.
+            </p>
+
+            <button
+              onClick={onComplete}
+              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+            >
+              Start coding
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── App ── */
 
 export default function App() {
@@ -1509,6 +1731,23 @@ export default function App() {
           <div className="text-[12px] text-[#404040]">Loading...</div>
         </div>
       </div>
+    );
+  }
+
+  /* ── onboarding ── */
+
+  const anyProviderAuthed = state.providers.some((p) => p.credentialSet);
+  const needsOnboarding = !state.settings.onboardingComplete && !anyProviderAuthed;
+
+  if (needsOnboarding) {
+    return (
+      <OnboardingModal
+        onSaveCredential={saveCredential}
+        onComplete={async () => {
+          await updateSettings({ onboardingComplete: true });
+          void refresh();
+        }}
+      />
     );
   }
 

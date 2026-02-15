@@ -49,4 +49,5 @@ export const agentSettingsSchema = z.object({
   maxConcurrentTasks: z.number().int().min(1).max(10).optional(),
   theme: z.enum(["dark", "light"]).optional(),
   thinkingLevel: z.enum(["none", "low", "medium", "high", "xhigh"]).optional(),
+  onboardingComplete: z.boolean().optional(),
 });

@@ -91,6 +91,8 @@ export interface AgentSettings {
   theme: ThemeMode;
   /** Thinking / reasoning effort level */
   thinkingLevel: ThinkingLevel;
+  /** Whether the user has completed the onboarding flow */
+  onboardingComplete: boolean;
 }
 
 export interface AppState {
