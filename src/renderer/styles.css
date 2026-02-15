@@ -1,0 +1,96 @@
+@import "tailwindcss";
+@import "highlight.js/styles/github-dark-dimmed.css";
+
+@theme {
+  --font-sans: -apple-system, "SF Pro Text", "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", "JetBrains Mono",
+    monospace;
+}
+
+/* ── Theme variables ── */
+
+:root {
+  --bg-base: #141414;
+  --bg-card: #1a1a1a;
+  --bg-elevated: #1e1e1e;
+  --bg-input: #141414;
+  --bg-hover: #1a1a1a;
+  --bg-code: #0e0e0e;
+  --border: #222;
+  --border-hover: #333;
+  --text-primary: #e0e0e0;
+  --text-secondary: #c0c0c0;
+  --text-muted: #808080;
+  --text-dim: #555;
+  --text-dimmer: #404040;
+  --text-dimmest: #333;
+  --user-bubble: #222;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.06);
+  --scrollbar-hover: rgba(255, 255, 255, 0.12);
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg-base: #f5f5f5;
+  --bg-card: #ffffff;
+  --bg-elevated: #f0f0f0;
+  --bg-input: #ffffff;
+  --bg-hover: #f0f0f0;
+  --bg-code: #f6f8fa;
+  --border: #e0e0e0;
+  --border-hover: #ccc;
+  --text-primary: #1a1a1a;
+  --text-secondary: #333;
+  --text-muted: #666;
+  --text-dim: #888;
+  --text-dimmer: #aaa;
+  --text-dimmest: #ccc;
+  --user-bubble: #e8e8e8;
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-hover: rgba(0, 0, 0, 0.2);
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* drag region for frameless titlebar */
+.drag-region {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Light theme overrides for highlight.js */
+[data-theme="light"] .hljs {
+  background: #f6f8fa;
+  color: #24292f;
+}
+[data-theme="light"] .hljs-keyword { color: #cf222e; }
+[data-theme="light"] .hljs-string { color: #0a3069; }
+[data-theme="light"] .hljs-comment { color: #6e7781; }
+[data-theme="light"] .hljs-number { color: #0550ae; }
+[data-theme="light"] .hljs-function { color: #8250df; }
+[data-theme="light"] .hljs-title { color: #8250df; }

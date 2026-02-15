@@ -1,0 +1,106 @@
+{
+  "name": "sncode",
+  "version": "0.1.0",
+  "private": true,
+  "author": "SNCode",
+  "license": "MIT",
+  "description": "SNCode desktop AI coding agent",
+  "main": "dist-electron/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite --host 127.0.0.1 --port 5188 --strictPort",
+    "dev:electron": "concurrently -k \"npm:build:electron:watch\" \"wait-on http-get://127.0.0.1:5188 http-get://127.0.0.1:5188/@vite/client dist-electron/main/main.js && electron .\"",
+    "build": "vite build && npm run build:electron",
+    "build:electron": "tsc -p tsconfig.node.json",
+    "build:electron:watch": "tsc -p tsconfig.node.json --watch",
+    "start": "electron .",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "vitest run",
+    "package": "npm run build && electron-builder"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "highlight.js": "^11.11.1",
+    "keytar": "^7.9.0",
+    "nanoid": "^5.1.6",
+    "openai": "^6.22.0",
+    "picomatch": "^4.0.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "zod": "^4.1.11"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^24.1.0",
+    "@types/picomatch": "^4.0.2",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@typescript-eslint/eslint-plugin": "^8.46.1",
+    "@typescript-eslint/parser": "^8.46.1",
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.0",
+    "electron": "^37.2.5",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.37.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "tailwindcss": "^4.1.13",
+    "typescript": "^5.9.2",
+    "vite": "^7.0.6",
+    "vitest": "^3.2.4",
+    "wait-on": "^8.0.4"
+  },
+  "build": {
+    "appId": "com.sncode.desktop",
+    "productName": "SnCode",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/keytar/**"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "SnCode"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+      "category": "public.app-category.developer-tools",
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false
+    },
+    "linux": {
+      "target": [
+        { "target": "AppImage", "arch": ["x64"] },
+        { "target": "deb", "arch": ["x64"] }
+      ],
+      "artifactName": "${productName}-${version}-linux-${arch}.${ext}",
+      "category": "Development"
+    },
+    "publish": null
+  }
+}
