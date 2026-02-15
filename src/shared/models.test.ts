@@ -17,7 +17,7 @@ describe("models", () => {
 
   it("providerForModelId returns correct provider", () => {
     expect(providerForModelId("claude-opus-4-6")).toBe("anthropic");
-    expect(providerForModelId("codex-5.3")).toBe("codex");
+    expect(providerForModelId("gpt-5.3-codex")).toBe("codex");
   });
 
   it("providerForModelId returns null for unknown model", () => {
@@ -31,7 +31,7 @@ describe("models", () => {
 
   it("smallestAvailableModelId returns codex-mini when only codex authorized", () => {
     const result = smallestAvailableModelId(new Set(["codex"]));
-    expect(result).toBe("codex-5.1-mini");
+    expect(result).toBe("gpt-5.1-codex-mini");
   });
 
   it("smallestAvailableModelId returns haiku when both authorized", () => {

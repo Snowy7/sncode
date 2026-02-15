@@ -5,11 +5,12 @@ export interface ModelEntry {
 }
 
 export const ALL_MODELS: ModelEntry[] = [
-  { id: "claude-opus-4-6",              label: "Opus 4.6",       provider: "anthropic" },
-  { id: "claude-sonnet-4-5",            label: "Sonnet 4.5",     provider: "anthropic" },
-  { id: "claude-haiku-4-5",             label: "Haiku 4.5",      provider: "anthropic" },
-  { id: "codex-5.3",                    label: "Codex 5.3",      provider: "codex" },
-  { id: "codex-5.1-mini",               label: "Codex 5.1 Mini", provider: "codex" },
+  { id: "claude-opus-4-6",              label: "Opus 4.6",         provider: "anthropic" },
+  { id: "claude-sonnet-4-5",            label: "Sonnet 4.5",       provider: "anthropic" },
+  { id: "claude-haiku-4-5",             label: "Haiku 4.5",        provider: "anthropic" },
+  { id: "gpt-5.3-codex",                label: "Codex 5.3",        provider: "codex" },
+  { id: "gpt-5.2-codex",                label: "Codex 5.2",        provider: "codex" },
+  { id: "gpt-5.1-codex-mini",           label: "Codex 5.1 Mini",   provider: "codex" },
 ];
 
 export const DEFAULT_ANTHROPIC_MODEL = ALL_MODELS[0].id;
@@ -25,13 +26,14 @@ export function providerForModelId(id: string): "anthropic" | "codex" | null {
 
 /**
  * Return the cheapest / smallest model available given authorized providers.
- * Order of preference: haiku → codex-mini → sonnet → codex-5.3 → opus
+ * Order of preference: haiku → codex-mini → sonnet → codex-5.2 → codex-5.3 → opus
  */
 const TITLE_MODEL_PRIORITY: string[] = [
   "claude-haiku-4-5",
-  "codex-5.1-mini",
+  "gpt-5.1-codex-mini",
   "claude-sonnet-4-5",
-  "codex-5.3",
+  "gpt-5.2-codex",
+  "gpt-5.3-codex",
   "claude-opus-4-6",
 ];
 
