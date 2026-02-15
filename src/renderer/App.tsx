@@ -136,10 +136,10 @@ function Markdown({ content }: { content: string }) {
       remarkPlugins={[remarkGfm]}
       components={{
         p: ({ children }) => <p className="mb-3 last:mb-0 leading-[1.7]">{children}</p>,
-        h1: ({ children }) => <h1 className="mb-2 mt-5 text-[17px] font-bold text-[#e0e0e0]">{children}</h1>,
-        h2: ({ children }) => <h2 className="mb-2 mt-4 text-[15px] font-semibold text-[#e0e0e0]">{children}</h2>,
-        h3: ({ children }) => <h3 className="mb-1.5 mt-3 text-[14px] font-semibold text-[#d0d0d0]">{children}</h3>,
-        h4: ({ children }) => <h4 className="mb-1 mt-2 text-[13px] font-semibold text-[#d0d0d0]">{children}</h4>,
+        h1: ({ children }) => <h1 className="mb-2 mt-5 text-[17px] font-bold text-[var(--text-primary)]">{children}</h1>,
+        h2: ({ children }) => <h2 className="mb-2 mt-4 text-[15px] font-semibold text-[var(--text-primary)]">{children}</h2>,
+        h3: ({ children }) => <h3 className="mb-1.5 mt-3 text-[14px] font-semibold text-[var(--text-primary)]">{children}</h3>,
+        h4: ({ children }) => <h4 className="mb-1 mt-2 text-[13px] font-semibold text-[var(--text-primary)]">{children}</h4>,
         ul: ({ children }) => <ul className="mb-3 ml-5 list-disc space-y-1">{children}</ul>,
         ol: ({ children }) => <ol className="mb-3 ml-5 list-decimal space-y-1">{children}</ol>,
         li: ({ children }) => <li className="leading-[1.65]">{children}</li>,
@@ -148,12 +148,12 @@ function Markdown({ content }: { content: string }) {
             {children}
           </a>
         ),
-        blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-[#333] pl-3 text-[#909090]">{children}</blockquote>,
-        strong: ({ children }) => <strong className="font-semibold text-[#e0e0e0]">{children}</strong>,
-        em: ({ children }) => <em className="text-[#c0c0c0]">{children}</em>,
-        hr: () => <hr className="my-4 border-[#222]" />,
+        blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-[var(--border-active)] pl-3 text-[var(--text-muted)]">{children}</blockquote>,
+        strong: ({ children }) => <strong className="font-semibold text-[var(--text-primary)]">{children}</strong>,
+        em: ({ children }) => <em className="text-[var(--text-secondary)]">{children}</em>,
+        hr: () => <hr className="my-4 border-[var(--border)]" />,
         pre: ({ children }) => (
-          <div className="group/code relative my-3 overflow-hidden rounded-lg border border-[#1e1e1e] bg-[#0e0e0e]">
+          <div className="group/code relative my-3 overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-code)]">
             <pre className="overflow-x-auto p-3.5 text-[12.5px] leading-relaxed [&_code]:bg-transparent [&_code]:p-0 [&_code]:text-[12.5px]">
               {children}
             </pre>
@@ -178,15 +178,15 @@ function Markdown({ content }: { content: string }) {
               />
             );
           }
-          return <code className="rounded bg-[#222] px-1.5 py-0.5 text-[12px] font-mono text-[#e0e0e0]">{children}</code>;
+          return <code className="rounded bg-[var(--bg-user-bubble)] px-1.5 py-0.5 text-[12px] font-mono text-[var(--text-primary)]">{children}</code>;
         },
         table: ({ children }) => (
           <div className="my-3 overflow-x-auto">
             <table className="w-full border-collapse text-[13px]">{children}</table>
           </div>
         ),
-        th: ({ children }) => <th className="border border-[#2a2a2a] bg-[#1a1a1a] px-3 py-1.5 text-left text-[12px] font-medium text-[#ccc]">{children}</th>,
-        td: ({ children }) => <td className="border border-[#222] px-3 py-1.5">{children}</td>,
+        th: ({ children }) => <th className="border border-[var(--border-strong)] bg-[var(--bg-card)] px-3 py-1.5 text-left text-[12px] font-medium text-[var(--text-heading)]">{children}</th>,
+        td: ({ children }) => <td className="border border-[var(--border)] px-3 py-1.5">{children}</td>,
       }}
     >
       {content}
@@ -215,33 +215,33 @@ function ToolMessage({ msg }: { msg: ThreadMessage }) {
           : "bg-blue-400/70";
 
   return (
-    <div className={`rounded-lg border border-[#1e1e1e] bg-[#141414] ${pending ? "opacity-80" : ""}`}>
+    <div className={`rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-base)] ${pending ? "opacity-80" : ""}`}>
       <button
         onClick={() => !pending && setExpanded((v) => !v)}
         className="flex w-full items-center gap-2 px-3.5 py-2 text-left"
       >
         <div className={`h-1.5 w-1.5 shrink-0 rounded-full ${dotColor}`} />
-        <span className="min-w-0 flex-1 truncate text-[12px] text-[#808080]">
+        <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--text-muted)]">
           {pending ? `${detail}...` : detail}
         </span>
         {!pending && (
           <svg
             width="10" height="10" viewBox="0 0 10 10" fill="currentColor"
-            className={`shrink-0 text-[#444] transition-transform ${expanded ? "rotate-180" : ""}`}
+            className={`shrink-0 text-[var(--text-dimmer)] transition-transform ${expanded ? "rotate-180" : ""}`}
           >
             <path d="M2 3.5l3 3 3-3z" />
           </svg>
         )}
       </button>
       {!pending && (expanded || !isLong) && result && (
-        <div className="border-t border-[#1a1a1a] px-3.5 py-2.5">
+        <div className="border-t border-[var(--border-subtle)] px-3.5 py-2.5">
           {(name === "edit_file") && result.startsWith("Replaced") ? (
             <div className="flex items-center gap-1.5 text-[11px] text-emerald-500/70">
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
               {result}
             </div>
           ) : (
-            <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-[#606060]">
+            <pre className="max-h-[300px] overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-[var(--text-dim)]">
               {isLong && !expanded ? result.slice(0, 200) + "..." : result}
             </pre>
           )}
@@ -280,35 +280,35 @@ function TaskMessage({ msg, onClickDetail }: { msg: ThreadMessage; onClickDetail
     : "bg-emerald-500/70";
 
   return (
-    <div className={`rounded-lg border border-[#252525] bg-[#161616] ${pending ? "opacity-90" : ""}`}>
+    <div className={`rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] ${pending ? "opacity-90" : ""}`}>
       {/* Task header - clickable for sidebar detail */}
       <button
         onClick={() => onClickDetail?.(msg)}
-        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition hover:bg-[#1a1a1a] rounded-t-lg"
+        className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition hover:bg-[var(--bg-card)] rounded-t-lg"
       >
         <div className={`h-2 w-2 shrink-0 rounded-full ${statusDot}`} />
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#555]">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-dim)]">
           <rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
         </svg>
-        <span className="min-w-0 flex-1 text-[12.5px] font-medium text-[#b0b0b0]">
+        <span className="min-w-0 flex-1 text-[12.5px] font-medium text-[var(--text-label)]">
           {pending ? `${description}...` : description}
         </span>
         <span className={`rounded border px-1.5 py-px text-[9px] font-medium ${typeBadge.color}`}>
           {typeBadge.label}
         </span>
         {!pending && duration !== undefined && (
-          <span className="text-[10px] text-[#444]">{formatDuration(duration)}</span>
+          <span className="text-[10px] text-[var(--text-dimmer)]">{formatDuration(duration)}</span>
         )}
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="shrink-0 text-[#333]">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="shrink-0 text-[var(--text-dimmest)]">
           <path d="M3 1l4.5 4.5L3 10" />
         </svg>
       </button>
 
       {/* Last trail entry - shows what's happening now */}
       {pending && lastTrail && (
-        <div className="mx-4 border-t border-[#1e1e1e] py-1.5">
-          <div className="flex items-center gap-1.5 text-[10px] text-[#555]">
-            <div className={`h-1 w-1 rounded-full ${lastTrail.type === "tool" ? "bg-blue-400/70" : "bg-[#555]"}`} />
+        <div className="mx-4 border-t border-[var(--border-subtle)] py-1.5">
+          <div className="flex items-center gap-1.5 text-[10px] text-[var(--text-dim)]">
+            <div className={`h-1 w-1 rounded-full ${lastTrail.type === "tool" ? "bg-blue-400/70" : "bg-[var(--text-dim)]"}`} />
             <span className="truncate">{lastTrail.summary}</span>
           </div>
         </div>
@@ -317,29 +317,29 @@ function TaskMessage({ msg, onClickDetail }: { msg: ThreadMessage; onClickDetail
       {/* Result */}
       {!pending && result && (
         <>
-          <div className="mx-4 h-px bg-[#222]" />
+          <div className="mx-4 h-px bg-[var(--bg-user-bubble)]" />
           <div className="px-4 py-2.5">
             {isLong && !expanded ? (
               <>
-                <div className="text-[12px] leading-relaxed text-[#808080]">
+                <div className="text-[12px] leading-relaxed text-[var(--text-muted)]">
                   <Markdown content={result.slice(0, 300) + "..."} />
                 </div>
                 <button
                   onClick={(e) => { e.stopPropagation(); setExpanded(true); }}
-                  className="mt-1 text-[11px] text-[#555] transition hover:text-[#999]"
+                  className="mt-1 text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"
                 >
                   Show full result
                 </button>
               </>
             ) : (
-              <div className="max-h-[400px] overflow-auto text-[12px] leading-relaxed text-[#808080]">
+              <div className="max-h-[400px] overflow-auto text-[12px] leading-relaxed text-[var(--text-muted)]">
                 <Markdown content={result} />
               </div>
             )}
             {expanded && isLong && (
               <button
                 onClick={(e) => { e.stopPropagation(); setExpanded(false); }}
-                className="mt-1 text-[11px] text-[#555] transition hover:text-[#999]"
+                className="mt-1 text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"
               >
                 Collapse
               </button>
@@ -353,11 +353,11 @@ function TaskMessage({ msg, onClickDetail }: { msg: ThreadMessage; onClickDetail
         <div className="px-4 pb-2.5">
           <div className="flex items-center gap-1.5">
             <div className="flex gap-[3px]">
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "0ms" }} />
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "150ms" }} />
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "300ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "0ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "150ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "300ms" }} />
             </div>
-            <span className="text-[10px] text-[#404040]">Sub-agent working...</span>
+            <span className="text-[10px] text-[var(--text-dimmer)]">Sub-agent working...</span>
           </div>
         </div>
       )}
@@ -457,10 +457,10 @@ function FileIcon({ name }: { name: string }) {
   const colorMap: Record<string, string> = {
     ts: "text-blue-400", tsx: "text-blue-400", js: "text-yellow-400", jsx: "text-yellow-400",
     py: "text-green-400", rs: "text-orange-400", go: "text-cyan-400", java: "text-red-400",
-    css: "text-purple-400", html: "text-orange-400", json: "text-yellow-500", md: "text-[#808080]",
-    yml: "text-pink-400", yaml: "text-pink-400", toml: "text-[#808080]",
+    css: "text-purple-400", html: "text-orange-400", json: "text-yellow-500", md: "text-[var(--text-muted)]",
+    yml: "text-pink-400", yaml: "text-pink-400", toml: "text-[var(--text-muted)]",
   };
-  const color = colorMap[ext] || "text-[#606060]";
+  const color = colorMap[ext] || "text-[var(--text-dim)]";
   return (
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`shrink-0 ${color}`}>
       <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
@@ -470,11 +470,11 @@ function FileIcon({ name }: { name: string }) {
 
 function FolderIcon({ open }: { open: boolean }) {
   return open ? (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#808080]">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-muted)]">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   ) : (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#606060]">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-dim)]">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>
   );
@@ -488,10 +488,10 @@ function FileTreeNode({ entry, depth = 0, parentPath = "", onFileClick }: { entr
       <div>
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full items-center gap-1.5 rounded px-1 py-[2px] text-left text-[11px] text-[#909090] transition hover:bg-[#1a1a1a]"
+          className="flex w-full items-center gap-1.5 rounded px-1 py-[2px] text-left text-[11px] text-[var(--text-muted)] transition hover:bg-[var(--bg-card)]"
           style={{ paddingLeft: `${depth * 12 + 4}px` }}
         >
-          <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className={`shrink-0 text-[#555] transition-transform ${open ? "rotate-90" : ""}`}><path d="M1.5 0.5l3 2.5-3 2.5z" /></svg>
+          <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className={`shrink-0 text-[var(--text-dim)] transition-transform ${open ? "rotate-90" : ""}`}><path d="M1.5 0.5l3 2.5-3 2.5z" /></svg>
           <FolderIcon open={open} />
           <span className="truncate">{entry.name}</span>
         </button>
@@ -508,7 +508,7 @@ function FileTreeNode({ entry, depth = 0, parentPath = "", onFileClick }: { entr
   return (
     <button
       onClick={() => onFileClick?.(currentPath)}
-      className="flex w-full items-center gap-1.5 rounded px-1 py-[2px] text-left text-[11px] text-[#707070] transition hover:bg-[#1a1a1a] hover:text-[#b0b0b0]"
+      className="flex w-full items-center gap-1.5 rounded px-1 py-[2px] text-left text-[11px] text-[var(--text-muted)] transition hover:bg-[var(--bg-card)] hover:text-[var(--text-label)]"
       style={{ paddingLeft: `${depth * 12 + 16}px` }}
     >
       <FileIcon name={entry.name} />
@@ -529,8 +529,8 @@ function FileTreePanel({ projectPath, onFileClick }: { projectPath: string; onFi
     });
   }, [projectPath]);
 
-  if (loading) return <div className="px-3 py-2 text-[10px] text-[#404040]">Loading...</div>;
-  if (tree.length === 0) return <div className="px-3 py-2 text-[10px] text-[#404040]">Empty project</div>;
+  if (loading) return <div className="px-3 py-2 text-[10px] text-[var(--text-dimmer)]">Loading...</div>;
+  if (tree.length === 0) return <div className="px-3 py-2 text-[10px] text-[var(--text-dimmer)]">Empty project</div>;
 
   return (
     <div className="max-h-[240px] overflow-auto px-1 py-1">
@@ -584,7 +584,7 @@ function SearchBar({ messages, onClose, onHighlight }: { messages: ThreadMessage
   };
 
   return (
-    <div className="border-b border-[#222] bg-[#1a1a1a] px-4 py-2">
+    <div className="border-b border-[var(--border)] bg-[var(--bg-card)] px-4 py-2">
       <div className="flex items-center gap-2">
         <SearchIcon />
         <input
@@ -592,7 +592,7 @@ function SearchBar({ messages, onClose, onHighlight }: { messages: ThreadMessage
           value={query}
           onChange={(e) => { setQuery(e.target.value); setMatchIndex(0); }}
           placeholder="Search messages..."
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-[#e0e0e0] outline-none placeholder:text-[#404040]"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)]"
           onKeyDown={(e) => {
             if (e.key === "Escape") { onHighlight(""); onClose(); }
             if (e.key === "Enter" && !e.shiftKey) navigateResult(1);
@@ -600,15 +600,15 @@ function SearchBar({ messages, onClose, onHighlight }: { messages: ThreadMessage
           }}
         />
         {query.trim() && results.length > 0 && (
-          <span className="shrink-0 text-[11px] text-[#555]">{matchIndex + 1}/{results.length}</span>
+          <span className="shrink-0 text-[11px] text-[var(--text-dim)]">{matchIndex + 1}/{results.length}</span>
         )}
-        <button onClick={() => navigateResult(-1)} className="text-[#555] transition hover:text-[#999]" title="Previous">
+        <button onClick={() => navigateResult(-1)} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]" title="Previous">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 2L1.5 6h7z" /></svg>
         </button>
-        <button onClick={() => navigateResult(1)} className="text-[#555] transition hover:text-[#999]" title="Next">
+        <button onClick={() => navigateResult(1)} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]" title="Next">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M5 8L1.5 4h7z" /></svg>
         </button>
-        <button onClick={() => { onHighlight(""); onClose(); }} className="text-[#555] transition hover:text-[#999]"><XIcon /></button>
+        <button onClick={() => { onHighlight(""); onClose(); }} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"><XIcon /></button>
       </div>
     </div>
   );
@@ -679,17 +679,17 @@ function DiffViewer({ oldContent, newContent }: { oldContent: string; newContent
   void maxLen;
 
   return (
-    <div className="max-h-[300px] overflow-auto rounded-lg border border-[#1e1e1e] bg-[#0e0e0e] font-mono text-[11px]">
+    <div className="max-h-[300px] overflow-auto rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-code)] font-mono text-[11px]">
       {diffLines.map((line, i) => (
         <div
           key={i}
           className={`px-3 py-0.5 ${
             line.type === "removed" ? "bg-red-500/10 text-red-400/80" :
             line.type === "added" ? "bg-emerald-500/10 text-emerald-400/80" :
-            line.content.startsWith("@@") ? "text-[#555] italic" : "text-[#606060]"
+            line.content.startsWith("@@") ? "text-[var(--text-dim)] italic" : "text-[var(--text-dim)]"
           }`}
         >
-          <span className="mr-2 inline-block w-3 text-[#444]">
+          <span className="mr-2 inline-block w-3 text-[var(--text-dimmer)]">
             {line.type === "removed" ? "-" : line.type === "added" ? "+" : " "}
           </span>
           {line.content}
@@ -717,16 +717,16 @@ function RightSidebarFileView({ filePath, content, onClose }: { filePath: string
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-[#222] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2">
         <FileIcon name={filePath} />
-        <span className="min-w-0 flex-1 truncate text-[12px] text-[#b0b0b0]">{filePath}</span>
-        <button onClick={onClose} className="text-[#555] transition hover:text-[#999]"><XIcon /></button>
+        <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--text-label)]">{filePath}</span>
+        <button onClick={onClose} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"><XIcon /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-auto">
         {isError ? (
           <div className="p-4 text-[12px] text-red-400">{content}</div>
         ) : (
-          <pre className="p-3 text-[12px] leading-relaxed text-[#c0c0c0]">
+          <pre className="p-3 text-[12px] leading-relaxed text-[var(--text-secondary)]">
             <code dangerouslySetInnerHTML={{ __html: highlighted }} />
           </pre>
         )}
@@ -819,45 +819,45 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-[#222] px-3 py-2.5">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[#808080]">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2.5">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-[var(--text-muted)]">
           <path d="M6 3v12" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />
         </svg>
-        <span className="min-w-0 flex-1 text-[12px] font-medium text-[#c0c0c0]">Changes</span>
+        <span className="min-w-0 flex-1 text-[12px] font-medium text-[var(--text-secondary)]">Changes</span>
         <div className="flex items-center gap-1.5 text-[10px]">
           {modCount > 0 && <span className="text-amber-400">{modCount}M</span>}
           {addCount > 0 && <span className="text-emerald-400">+{addCount}</span>}
           {delCount > 0 && <span className="text-red-400">-{delCount}</span>}
         </div>
-        <button onClick={onClose} className="text-[#555] transition hover:text-[#999]"><XIcon /></button>
+        <button onClick={onClose} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"><XIcon /></button>
       </div>
 
       {diffs.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#333]">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[var(--text-dimmest)]">
             <path d="M9 11l3 3L22 4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="text-[12px] text-[#555]">Working tree clean</span>
+          <span className="text-[12px] text-[var(--text-dim)]">Working tree clean</span>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
           {/* File tree */}
-          <div className="shrink-0 overflow-auto border-b border-[#1e1e1e]" style={{ maxHeight: "40%" }}>
+          <div className="shrink-0 overflow-auto border-b border-[var(--border-subtle)]" style={{ maxHeight: "40%" }}>
             {tree.map(({ dir, files }) => (
               <div key={dir}>
                 {/* Directory header */}
                 {dir !== "." && (
                   <button
                     onClick={() => toggleDir(dir)}
-                    className="flex w-full items-center gap-1.5 px-2.5 py-[5px] text-left text-[10px] text-[#606060] transition hover:bg-[#1a1a1a]"
+                    className="flex w-full items-center gap-1.5 px-2.5 py-[5px] text-left text-[10px] text-[var(--text-dim)] transition hover:bg-[var(--bg-card)]"
                   >
-                    <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className={`shrink-0 text-[#444] transition-transform ${collapsedDirs.has(dir) ? "" : "rotate-90"}`}>
+                    <svg width="6" height="6" viewBox="0 0 6 6" fill="currentColor" className={`shrink-0 text-[var(--text-dimmer)] transition-transform ${collapsedDirs.has(dir) ? "" : "rotate-90"}`}>
                       <path d="M1.5 0.5l3 2.5-3 2.5z" />
                     </svg>
                     <FolderIcon open={!collapsedDirs.has(dir)} />
                     <span className="truncate font-medium">{dir}</span>
-                    <span className="ml-auto text-[9px] text-[#444]">{files.length}</span>
+                    <span className="ml-auto text-[9px] text-[var(--text-dimmer)]">{files.length}</span>
                   </button>
                 )}
                 {/* Files in this directory */}
@@ -867,7 +867,7 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
                     onClick={() => setSelectedFile(d.file)}
                     className={`flex w-full items-center gap-2 py-[4px] text-left text-[11px] transition ${
                       dir === "." ? "px-2.5" : "pl-7 pr-2.5"
-                    } ${d.file === selectedFile ? "bg-[#1e1e1e] text-[#e0e0e0]" : "text-[#909090] hover:bg-[#1a1a1a] hover:text-[#c0c0c0]"}`}
+                    } ${d.file === selectedFile ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:bg-[var(--bg-card)] hover:text-[var(--text-secondary)]"}`}
                   >
                     <DiffStatusBadge status={d.status} />
                     <FileIcon name={fileName(d.file)} />
@@ -879,13 +879,13 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
           </div>
 
           {/* Diff content */}
-          <div className="min-h-0 flex-1 overflow-auto bg-[#111]">
+          <div className="min-h-0 flex-1 overflow-auto bg-[var(--bg-input)]">
             {activeDiff ? (
               <>
                 {/* File header bar */}
-                <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[#1e1e1e] bg-[#161616] px-3 py-1.5">
+                <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-1.5">
                   <FileIcon name={fileName(activeDiff.file)} />
-                  <span className="min-w-0 truncate text-[11px] text-[#b0b0b0]">{activeDiff.file}</span>
+                  <span className="min-w-0 truncate text-[11px] text-[var(--text-label)]">{activeDiff.file}</span>
                   <DiffStatusBadge status={activeDiff.status} />
                 </div>
                 {/* Diff lines */}
@@ -894,22 +894,22 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
                     {diffLines.map((line, i) => {
                       if (line.type === "header") {
                         return (
-                          <div key={i} className="flex items-center border-y border-[#1e1e1e] bg-[#161b2e]/60 px-3 py-1 text-[10px] text-blue-400/60 italic">
+                          <div key={i} className="flex items-center border-y border-[var(--border-subtle)] bg-[var(--bg-diff-header)]/60 px-3 py-1 text-[10px] text-blue-400/60 italic">
                             <span>{line.content || "..."}</span>
                           </div>
                         );
                       }
                       const bgCls = line.type === "add" ? "bg-emerald-500/8" : line.type === "remove" ? "bg-red-500/8" : "";
-                      const textCls = line.type === "add" ? "text-emerald-300/80" : line.type === "remove" ? "text-red-300/80" : "text-[#606060]";
-                      const gutterCls = line.type === "add" ? "text-emerald-500/40" : line.type === "remove" ? "text-red-500/40" : "text-[#333]";
+                      const textCls = line.type === "add" ? "text-emerald-300/80" : line.type === "remove" ? "text-red-300/80" : "text-[var(--text-dim)]";
+                      const gutterCls = line.type === "add" ? "text-emerald-500/40" : line.type === "remove" ? "text-red-500/40" : "text-[var(--text-dimmest)]";
                       const marker = line.type === "add" ? "+" : line.type === "remove" ? "-" : " ";
                       const markerCls = line.type === "add" ? "text-emerald-400/60" : line.type === "remove" ? "text-red-400/60" : "text-transparent";
                       return (
                         <div key={i} className={`flex ${bgCls}`}>
-                          <span className={`w-[38px] shrink-0 select-none border-r border-[#1a1a1a] pr-1 text-right text-[10px] leading-[18px] ${gutterCls}`}>
+                          <span className={`w-[38px] shrink-0 select-none border-r border-[var(--border-subtle)] pr-1 text-right text-[10px] leading-[18px] ${gutterCls}`}>
                             {line.type !== "add" ? line.oldLine : ""}
                           </span>
-                          <span className={`w-[38px] shrink-0 select-none border-r border-[#1a1a1a] pr-1 text-right text-[10px] leading-[18px] ${gutterCls}`}>
+                          <span className={`w-[38px] shrink-0 select-none border-r border-[var(--border-subtle)] pr-1 text-right text-[10px] leading-[18px] ${gutterCls}`}>
                             {line.type !== "remove" ? line.newLine : ""}
                           </span>
                           <span className={`w-4 shrink-0 select-none text-center ${markerCls}`}>{marker}</span>
@@ -919,9 +919,9 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
                     })}
                   </div>
                 ) : (
-                  <div className="p-4 text-center text-[11px] text-[#555]">
+                  <div className="p-4 text-center text-[11px] text-[var(--text-dim)]">
                     {activeDiff.status === "untracked" ? (
-                      <pre className="whitespace-pre-wrap text-left text-[#606060]">{activeDiff.diff || "(empty file)"}</pre>
+                      <pre className="whitespace-pre-wrap text-left text-[var(--text-dim)]">{activeDiff.diff || "(empty file)"}</pre>
                     ) : (
                       "No diff available"
                     )}
@@ -929,7 +929,7 @@ function RightSidebarDiffView({ diffs, onClose }: { diffs: GitDiffEntry[]; onClo
                 )}
               </>
             ) : (
-              <div className="flex h-full items-center justify-center text-[12px] text-[#444]">Select a file to view changes</div>
+              <div className="flex h-full items-center justify-center text-[12px] text-[var(--text-dimmer)]">Select a file to view changes</div>
             )}
           </div>
         </div>
@@ -952,23 +952,23 @@ function RightSidebarSubAgent({ msg, onClose }: { msg: ThreadMessage; onClose: (
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-2 border-b border-[#222] px-3 py-2">
+      <div className="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2">
         <div className={`h-2 w-2 shrink-0 rounded-full ${pending ? "bg-amber-400/80 animate-pulse" : "bg-emerald-500/70"}`} />
-        <span className="min-w-0 flex-1 text-[12px] font-medium text-[#b0b0b0]">{description}</span>
+        <span className="min-w-0 flex-1 text-[12px] font-medium text-[var(--text-label)]">{description}</span>
         <span className={`rounded border px-1.5 py-px text-[9px] font-medium ${typeBadge.color}`}>{typeBadge.label}</span>
-        <button onClick={onClose} className="text-[#555] transition hover:text-[#999]"><XIcon /></button>
+        <button onClick={onClose} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"><XIcon /></button>
       </div>
 
       {/* Trail */}
       {trail.length > 0 && (
-        <div className="border-b border-[#1e1e1e] px-3 py-2">
-          <div className="text-[10px] font-medium text-[#555] mb-1.5">Activity Trail</div>
+        <div className="border-b border-[var(--border-subtle)] px-3 py-2">
+          <div className="text-[10px] font-medium text-[var(--text-dim)] mb-1.5">Activity Trail</div>
           <div className="space-y-1 max-h-[200px] overflow-auto">
             {trail.map((entry, i) => (
               <div key={i} className="flex items-center gap-2 text-[11px]">
-                <div className={`h-1 w-1 rounded-full ${entry.type === "tool" ? "bg-blue-400/70" : "bg-[#555]"}`} />
-                <span className="text-[#808080] truncate">{entry.summary}</span>
-                <span className="ml-auto shrink-0 text-[9px] text-[#333]">{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
+                <div className={`h-1 w-1 rounded-full ${entry.type === "tool" ? "bg-blue-400/70" : "bg-[var(--text-dim)]"}`} />
+                <span className="text-[var(--text-muted)] truncate">{entry.summary}</span>
+                <span className="ml-auto shrink-0 text-[9px] text-[var(--text-dimmest)]">{new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}</span>
               </div>
             ))}
           </div>
@@ -976,12 +976,12 @@ function RightSidebarSubAgent({ msg, onClose }: { msg: ThreadMessage; onClose: (
       )}
 
       {/* Status */}
-      <div className="px-3 py-2 border-b border-[#1e1e1e]">
+      <div className="px-3 py-2 border-b border-[var(--border-subtle)]">
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="text-[#555]">Status:</span>
+          <span className="text-[var(--text-dim)]">Status:</span>
           <span className={pending ? "text-amber-400" : "text-emerald-400"}>{pending ? "Running" : "Completed"}</span>
           {!pending && duration !== undefined && (
-            <span className="ml-auto text-[10px] text-[#444]">{formatDuration(duration)}</span>
+            <span className="ml-auto text-[10px] text-[var(--text-dimmer)]">{formatDuration(duration)}</span>
           )}
         </div>
       </div>
@@ -991,18 +991,18 @@ function RightSidebarSubAgent({ msg, onClose }: { msg: ThreadMessage; onClose: (
         {pending ? (
           <div className="flex items-center gap-2">
             <div className="flex gap-[3px]">
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "0ms" }} />
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "150ms" }} />
-              <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "300ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "0ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "150ms" }} />
+              <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "300ms" }} />
             </div>
-            <span className="text-[11px] text-[#404040]">Sub-agent working...</span>
+            <span className="text-[11px] text-[var(--text-dimmer)]">Sub-agent working...</span>
           </div>
         ) : result ? (
-          <div className="text-[12px] leading-relaxed text-[#808080]">
+          <div className="text-[12px] leading-relaxed text-[var(--text-muted)]">
             <Markdown content={result} />
           </div>
         ) : (
-          <div className="text-[12px] text-[#555]">No result yet</div>
+          <div className="text-[12px] text-[var(--text-dim)]">No result yet</div>
         )}
       </div>
     </div>
@@ -1024,18 +1024,18 @@ function TodoPanel({ todos, onToggle, onRemove, onAdd }: {
   const total = todos.length;
 
   return (
-    <div className="mb-2 rounded-lg border border-[#252525] bg-[#161616] overflow-hidden">
+    <div className="mb-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] overflow-hidden">
       {/* Header with progress */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[#1e1e1e]">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[#606060]">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border-subtle)]">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-dim)]">
           <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
         </svg>
-        <span className="text-[11px] font-medium text-[#808080]">Tasks</span>
+        <span className="text-[11px] font-medium text-[var(--text-muted)]">Tasks</span>
         {total > 0 && (
-          <span className="text-[10px] text-[#555]">{completed}/{total}</span>
+          <span className="text-[10px] text-[var(--text-dim)]">{completed}/{total}</span>
         )}
         {total > 0 && (
-          <div className="ml-auto h-1 w-16 rounded-full bg-[#222]">
+          <div className="ml-auto h-1 w-16 rounded-full bg-[var(--bg-user-bubble)]">
             <div className="h-1 rounded-full bg-emerald-500/60 transition-all" style={{ width: `${(completed / total) * 100}%` }} />
           </div>
         )}
@@ -1044,16 +1044,16 @@ function TodoPanel({ todos, onToggle, onRemove, onAdd }: {
       {/* Todo items */}
       <div className="max-h-[120px] overflow-auto">
         {todos.map((todo) => (
-          <div key={todo.id} className="flex items-center gap-2 px-3 py-1 hover:bg-[#1a1a1a] group">
+          <div key={todo.id} className="flex items-center gap-2 px-3 py-1 hover:bg-[var(--bg-card)] group">
             <button onClick={() => onToggle(todo.id)} className="shrink-0">
               {todo.status === "completed" ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" className="text-emerald-500/70"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="currentColor" stroke="currentColor" /><path d="M3 6l2 2 4-4" stroke="#161616" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                <svg width="12" height="12" viewBox="0 0 12 12" className="text-emerald-500/70"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="currentColor" stroke="currentColor" /><path d="M3 6l2 2 4-4" stroke="var(--check-mark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
               ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12" className="text-[#444]"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" /></svg>
+                <svg width="12" height="12" viewBox="0 0 12 12" className="text-[var(--text-dimmer)]"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" /></svg>
               )}
             </button>
-            <span className={`flex-1 text-[11px] ${todo.status === "completed" ? "text-[#555] line-through" : "text-[#b0b0b0]"}`}>{todo.content}</span>
-            <button onClick={() => onRemove(todo.id)} className="hidden text-[#444] transition hover:text-red-400 group-hover:block shrink-0">
+            <span className={`flex-1 text-[11px] ${todo.status === "completed" ? "text-[var(--text-dim)] line-through" : "text-[var(--text-label)]"}`}>{todo.content}</span>
+            <button onClick={() => onRemove(todo.id)} className="hidden text-[var(--text-dimmer)] transition hover:text-red-400 group-hover:block shrink-0">
               <XIcon />
             </button>
           </div>
@@ -1061,7 +1061,7 @@ function TodoPanel({ todos, onToggle, onRemove, onAdd }: {
       </div>
 
       {/* Add todo input */}
-      <div className="flex items-center gap-2 border-t border-[#1e1e1e] px-3 py-1.5">
+      <div className="flex items-center gap-2 border-t border-[var(--border-subtle)] px-3 py-1.5">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -1072,10 +1072,10 @@ function TodoPanel({ todos, onToggle, onRemove, onAdd }: {
             }
           }}
           placeholder="Add a task..."
-          className="min-w-0 flex-1 bg-transparent text-[11px] text-[#b0b0b0] outline-none placeholder:text-[#333]"
+          className="min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-label)] outline-none placeholder:text-[var(--text-dimmest)]"
         />
         {input.trim() && (
-          <button onClick={() => { onAdd(input.trim()); setInput(""); }} className="text-[10px] text-[#555] hover:text-[#999]">Add</button>
+          <button onClick={() => { onAdd(input.trim()); setInput(""); }} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)]">Add</button>
         )}
       </div>
     </div>
@@ -1099,7 +1099,7 @@ function ThinkingLevelPicker({ level, provider, onChange }: { level: string; pro
   const available = levels.filter((l) => !l.maxProvider || l.maxProvider === provider);
   const current = levels.find((l) => l.id === level) ?? levels[0];
 
-  const levelColor = level === "none" ? "text-[#606060]" :
+  const levelColor = level === "none" ? "text-[var(--text-dim)]" :
     level === "low" ? "text-blue-400/80" :
     level === "medium" ? "text-amber-400/80" :
     level === "high" ? "text-orange-400/80" :
@@ -1110,7 +1110,7 @@ function ThinkingLevelPicker({ level, provider, onChange }: { level: string; pro
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition hover:bg-[#252525] hover:text-[#999] ${levelColor}`}
+        className={`flex items-center gap-1 rounded-md px-2 py-1 text-[12px] transition hover:bg-[var(--bg-active)] hover:text-[var(--text-muted)] ${levelColor}`}
         title="Thinking / reasoning level"
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1123,13 +1123,13 @@ function ThinkingLevelPicker({ level, provider, onChange }: { level: string; pro
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute bottom-full left-0 z-20 mb-1 w-36 overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] py-1 shadow-xl shadow-black/40">
+          <div className="absolute bottom-full left-0 z-20 mb-1 w-36 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
             {available.map((l) => (
               <button
                 key={l.id}
                 type="button"
                 onClick={() => { onChange(l.id as ThinkingLevel); setOpen(false); }}
-                className={`flex w-full items-center justify-between px-3 py-[6px] text-left text-[12px] transition hover:bg-[#252525] ${l.id === level ? "text-[#e0e0e0]" : "text-[#707070]"}`}
+                className={`flex w-full items-center justify-between px-3 py-[6px] text-left text-[12px] transition hover:bg-[var(--bg-active)] ${l.id === level ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
               >
                 <span>{l.label}</span>
                 {l.id !== "none" && (
@@ -1153,20 +1153,28 @@ function ThinkingLevelPicker({ level, provider, onChange }: { level: string; pro
 
 /* ── Onboarding ── */
 
-type OnboardingStep = "welcome" | "provider" | "apikey" | "complete";
+type OnboardingStep = "welcome" | "provider" | "auth" | "apikey" | "subscription" | "complete";
+type OnboardingAuthMode = "apikey" | "subscription";
 
 function OnboardingModal({
   onSaveCredential,
+  onUpdateProvider,
   onComplete,
 }: {
   onSaveCredential: (providerId: string, credential: string) => Promise<void>;
+  onUpdateProvider: (provider: ProviderConfig, updates: Partial<ProviderConfig>) => Promise<void>;
   onComplete: () => void;
 }) {
   const [step, setStep] = useState<OnboardingStep>("welcome");
   const [selectedProvider, setSelectedProvider] = useState<ProviderId>("anthropic");
+  const [authMode, setAuthMode] = useState<OnboardingAuthMode>("subscription");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  // OAuth states
+  const [oauthCode, setOauthCode] = useState("");
+  const [oauthWaiting, setOauthWaiting] = useState(false);
+  const [codexDevice, setCodexDevice] = useState<{ userCode: string; deviceAuthId: string } | null>(null);
 
   async function handleSaveKey() {
     if (!apiKey.trim()) return;
@@ -1182,57 +1190,98 @@ function OnboardingModal({
     }
   }
 
+  async function handleAnthropicOAuth() {
+    setError("");
+    try {
+      await window.sncode.oauthAnthropicStart();
+      setOauthWaiting(true);
+    } catch {
+      setError("Failed to start sign-in flow");
+    }
+  }
+
+  async function handleAnthropicExchange() {
+    if (!oauthCode.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await window.sncode.oauthAnthropicExchange(oauthCode.trim());
+      setStep("complete");
+    } catch {
+      setError("Invalid authorization code. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleCodexOAuth() {
+    setError("");
+    try {
+      const result = await window.sncode.oauthCodexStart();
+      setCodexDevice({ userCode: result.userCode, deviceAuthId: result.deviceAuthId });
+      // Start polling in background
+      window.sncode.oauthCodexPoll({ deviceAuthId: result.deviceAuthId, userCode: result.userCode })
+        .then(() => { setStep("complete"); setCodexDevice(null); })
+        .catch(() => { setError("Authorization failed or timed out."); setCodexDevice(null); });
+    } catch {
+      setError("Failed to start device authorization");
+    }
+  }
+
+  const providerLabel = selectedProvider === "anthropic" ? "Anthropic" : "OpenAI";
+  const subscriptionLabel = selectedProvider === "anthropic" ? "Claude Pro / Max" : "ChatGPT Plus / Pro";
+
   return (
-    <div className="flex h-screen items-center justify-center bg-[#141414]">
-      <div className="w-[460px] rounded-2xl border border-[#222] bg-[#1a1a1a] p-8 shadow-2xl shadow-black/40">
+    <div className="flex h-screen items-center justify-center bg-[var(--bg-base)]">
+      <div className="w-[460px] rounded-2xl border border-[var(--border)] bg-[var(--bg-card)] p-8 shadow-2xl shadow-black/40">
 
         {/* Step: Welcome */}
         {step === "welcome" && (
           <div className="text-center">
             <div className="mb-1 text-[28px] font-bold tracking-tight">
-              <span className="text-white">Sn</span><span className="text-[#555]">Code</span>
+              <span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span>
             </div>
-            <p className="mb-6 text-[13px] text-[#606060]">AI-powered coding agent for your desktop</p>
+            <p className="mb-6 text-[13px] text-[var(--text-dim)]">AI-powered coding agent for your desktop</p>
 
             <div className="mb-8 space-y-3 text-left">
-              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
-                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+              <div className="flex items-start gap-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--bg-user-bubble)] text-[var(--text-muted)]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
                 </div>
                 <div>
-                  <div className="text-[13px] font-medium text-[#ccc]">Powerful AI agent</div>
-                  <div className="text-[11px] text-[#555]">Read, write, edit files, run commands, and more</div>
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">Powerful AI agent</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Read, write, edit files, run commands, and more</div>
                 </div>
               </div>
-              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
-                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+              <div className="flex items-start gap-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--bg-user-bubble)] text-[var(--text-muted)]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
                 </div>
                 <div>
-                  <div className="text-[13px] font-medium text-[#ccc]">Multi-model support</div>
-                  <div className="text-[11px] text-[#555]">Claude (Anthropic) and Codex (OpenAI) models</div>
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">Multi-model support</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Claude (Anthropic) and Codex (OpenAI) models</div>
                 </div>
               </div>
-              <div className="flex items-start gap-3 rounded-lg border border-[#252525] bg-[#161616] px-4 py-3">
-                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#222] text-[#808080]">
+              <div className="flex items-start gap-3 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] px-4 py-3">
+                <div className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--bg-user-bubble)] text-[var(--text-muted)]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
                 </div>
                 <div>
-                  <div className="text-[13px] font-medium text-[#ccc]">Secure by default</div>
-                  <div className="text-[11px] text-[#555]">API keys stored in your OS keychain</div>
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">Secure by default</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Credentials stored in your OS keychain</div>
                 </div>
               </div>
             </div>
 
             <button
               onClick={() => setStep("provider")}
-              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+              className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
             >
               Get started
             </button>
             <button
               onClick={onComplete}
-              className="mt-3 w-full rounded-xl px-4 py-2 text-[12px] text-[#505050] transition hover:text-[#808080]"
+              className="mt-3 w-full rounded-xl px-4 py-2 text-[12px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"
             >
               Skip for now
             </button>
@@ -1242,75 +1291,224 @@ function OnboardingModal({
         {/* Step: Pick provider */}
         {step === "provider" && (
           <div>
-            <button onClick={() => setStep("welcome")} className="mb-4 flex items-center gap-1 text-[12px] text-[#555] transition hover:text-[#999]">
+            <button onClick={() => setStep("welcome")} className="mb-4 flex items-center gap-1 text-[12px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
               Back
             </button>
-            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">Choose a provider</h2>
-            <p className="mb-5 text-[12px] text-[#555]">Select which AI provider you want to use. You can add more later in Settings.</p>
+            <h2 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">Choose a provider</h2>
+            <p className="mb-5 text-[12px] text-[var(--text-dim)]">Select which AI provider you want to use. You can add more later in Settings.</p>
 
             <div className="mb-6 space-y-2">
               <button
                 onClick={() => setSelectedProvider("anthropic")}
                 className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
                   selectedProvider === "anthropic"
-                    ? "border-[#444] bg-[#1e1e1e]"
-                    : "border-[#252525] bg-[#161616] hover:border-[#333]"
+                    ? "border-[var(--border-active)] bg-[var(--bg-elevated)]"
+                    : "border-[var(--border-strong)] bg-[var(--bg-surface)] hover:border-[var(--border-active)]"
                 }`}
               >
-                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "anthropic" ? "bg-[#333] text-white" : "bg-[#222] text-[#666]"}`}>
+                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "anthropic" ? "bg-[var(--bg-stop)] text-white" : "bg-[var(--bg-user-bubble)] text-[var(--text-muted)]"}`}>
                   <span className="text-[14px] font-bold">A</span>
                 </div>
                 <div className="flex-1">
-                  <div className="text-[13px] font-medium text-[#ccc]">Anthropic</div>
-                  <div className="text-[11px] text-[#555]">Claude Opus, Sonnet, and Haiku models</div>
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">Anthropic</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Claude Opus, Sonnet, and Haiku models</div>
                 </div>
                 {selectedProvider === "anthropic" && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#e0e0e0" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#e0e0e0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
               <button
                 onClick={() => setSelectedProvider("codex")}
                 className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
                   selectedProvider === "codex"
-                    ? "border-[#444] bg-[#1e1e1e]"
-                    : "border-[#252525] bg-[#161616] hover:border-[#333]"
+                    ? "border-[var(--border-active)] bg-[var(--bg-elevated)]"
+                    : "border-[var(--border-strong)] bg-[var(--bg-surface)] hover:border-[var(--border-active)]"
                 }`}
               >
-                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "codex" ? "bg-[#333] text-white" : "bg-[#222] text-[#666]"}`}>
+                <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg ${selectedProvider === "codex" ? "bg-[var(--bg-stop)] text-white" : "bg-[var(--bg-user-bubble)] text-[var(--text-muted)]"}`}>
                   <span className="text-[14px] font-bold">O</span>
                 </div>
                 <div className="flex-1">
-                  <div className="text-[13px] font-medium text-[#ccc]">OpenAI</div>
-                  <div className="text-[11px] text-[#555]">Codex 5.3 and Codex Mini models</div>
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">OpenAI</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Codex 5.3 and Codex Mini models</div>
                 </div>
                 {selectedProvider === "codex" && (
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="#e0e0e0" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="#e0e0e0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
             </div>
 
             <button
-              onClick={() => setStep("apikey")}
-              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+              onClick={() => setStep("auth")}
+              className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
             >
               Continue
             </button>
           </div>
         )}
 
-        {/* Step: Enter API key */}
-        {step === "apikey" && (
+        {/* Step: Choose auth mode */}
+        {step === "auth" && (
           <div>
-            <button onClick={() => setStep("provider")} className="mb-4 flex items-center gap-1 text-[12px] text-[#555] transition hover:text-[#999]">
+            <button onClick={() => setStep("provider")} className="mb-4 flex items-center gap-1 text-[12px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
               <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
               Back
             </button>
-            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">
-              Enter your {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key
+            <h2 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">How do you want to sign in?</h2>
+            <p className="mb-5 text-[12px] text-[var(--text-dim)]">Choose how to authenticate with {providerLabel}.</p>
+
+            <div className="mb-6 space-y-2">
+              <button
+                onClick={() => setAuthMode("subscription")}
+                className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
+                  authMode === "subscription"
+                    ? "border-[var(--border-active)] bg-[var(--bg-elevated)]"
+                    : "border-[var(--border-strong)] bg-[var(--bg-surface)] hover:border-[var(--border-active)]"
+                }`}
+              >
+                <div className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${authMode === "subscription" ? "bg-[var(--bg-stop)] text-white" : "bg-[var(--bg-user-bubble)] text-[var(--text-muted)]"}`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">Sign in with subscription</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Use your {subscriptionLabel} subscription</div>
+                </div>
+                {authMode === "subscription" && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="mt-0.5"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+              <button
+                onClick={() => setAuthMode("apikey")}
+                className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3.5 text-left transition ${
+                  authMode === "apikey"
+                    ? "border-[var(--border-active)] bg-[var(--bg-elevated)]"
+                    : "border-[var(--border-strong)] bg-[var(--bg-surface)] hover:border-[var(--border-active)]"
+                }`}
+              >
+                <div className={`mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg ${authMode === "apikey" ? "bg-[var(--bg-stop)] text-white" : "bg-[var(--bg-user-bubble)] text-[var(--text-muted)]"}`}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                </div>
+                <div className="flex-1">
+                  <div className="text-[13px] font-medium text-[var(--text-heading)]">API key</div>
+                  <div className="text-[11px] text-[var(--text-dim)]">Paste an API key from the developer console</div>
+                </div>
+                {authMode === "apikey" && (
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="mt-0.5"><circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.5"/><path d="M4 7l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+            </div>
+
+            <button
+              onClick={() => setStep(authMode === "apikey" ? "apikey" : "subscription")}
+              className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
+            >
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* Step: Subscription OAuth */}
+        {step === "subscription" && (
+          <div>
+            <button onClick={() => { setStep("auth"); setOauthWaiting(false); setOauthCode(""); setCodexDevice(null); setError(""); }} className="mb-4 flex items-center gap-1 text-[12px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
+              Back
+            </button>
+            <h2 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">
+              Sign in with {subscriptionLabel}
             </h2>
-            <p className="mb-4 text-[12px] text-[#555]">
-              Your key is stored securely in your OS keychain and never sent anywhere except to {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"}.
+
+            {selectedProvider === "anthropic" ? (
+              /* Anthropic: PKCE code flow */
+              <div>
+                {!oauthWaiting ? (
+                  <>
+                    <p className="mb-5 text-[12px] text-[var(--text-dim)]">
+                      Sign in with your Claude account. A browser window will open for you to authorize SnCode.
+                    </p>
+                    {error && <p className="mb-3 text-[11px] text-red-400">{error}</p>}
+                    <button
+                      onClick={handleAnthropicOAuth}
+                      className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
+                    >
+                      Sign in with Claude
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-4 text-[12px] text-[var(--text-dim)]">
+                      Complete sign-in in your browser, then paste the authorization code below.
+                    </p>
+                    {error && <p className="mb-3 text-[11px] text-red-400">{error}</p>}
+                    <div className="mb-4 flex gap-2">
+                      <input
+                        type="text"
+                        value={oauthCode}
+                        onChange={(e) => { setOauthCode(e.target.value); setError(""); }}
+                        onKeyDown={(e) => { if (e.key === "Enter" && oauthCode.trim()) void handleAnthropicExchange(); }}
+                        placeholder="Paste authorization code..."
+                        autoFocus
+                        className="min-w-0 flex-1 rounded-lg border border-[var(--border-active)] bg-[var(--bg-base)] px-3 py-2.5 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)] focus:border-[var(--text-dim)]"
+                      />
+                      <button
+                        onClick={handleAnthropicExchange}
+                        disabled={!oauthCode.trim() || saving}
+                        className="shrink-0 rounded-lg bg-[var(--bg-accent)] px-4 py-2.5 text-[12px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)] disabled:opacity-30"
+                      >
+                        {saving ? "..." : "Confirm"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              /* Codex: Device code flow */
+              <div>
+                {!codexDevice ? (
+                  <>
+                    <p className="mb-5 text-[12px] text-[var(--text-dim)]">
+                      Sign in with your ChatGPT account. A browser window will open for you to authorize SnCode.
+                    </p>
+                    {error && <p className="mb-3 text-[11px] text-red-400">{error}</p>}
+                    <button
+                      onClick={handleCodexOAuth}
+                      className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
+                    >
+                      Sign in with ChatGPT
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="mb-4 text-[12px] text-[var(--text-dim)]">
+                      Enter this code on the page that opened in your browser:
+                    </p>
+                    <div className="mb-4 flex items-center justify-center rounded-xl border border-[var(--border-strong)] bg-[var(--bg-surface)] py-4">
+                      <span className="font-mono text-[22px] font-bold tracking-[0.3em] text-[var(--text-primary)]">{codexDevice.userCode}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-2 w-2 animate-pulse rounded-full bg-amber-400/80" />
+                      <span className="text-[12px] text-[var(--text-dim)]">Waiting for authorization...</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step: Enter API key */}
+        {step === "apikey" && (
+          <div>
+            <button onClick={() => setStep("auth")} className="mb-4 flex items-center gap-1 text-[12px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><path d="M7 1L3 5l4 4z"/></svg>
+              Back
+            </button>
+            <h2 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">
+              Enter your {providerLabel} API key
+            </h2>
+            <p className="mb-4 text-[12px] text-[var(--text-dim)]">
+              Your key is stored securely in your OS keychain and never sent anywhere except to {providerLabel}.
             </p>
 
             <div className="mb-2">
@@ -1320,7 +1518,7 @@ function OnboardingModal({
                 onChange={(e) => { setApiKey(e.target.value); setError(""); }}
                 onKeyDown={(e) => { if (e.key === "Enter" && apiKey.trim()) void handleSaveKey(); }}
                 placeholder={selectedProvider === "anthropic" ? "sk-ant-..." : "sk-..."}
-                className="w-full rounded-lg border border-[#333] bg-[#141414] px-3.5 py-2.5 text-[13px] text-[#e0e0e0] outline-none placeholder:text-[#333] focus:border-[#555]"
+                className="w-full rounded-lg border border-[var(--border-active)] bg-[var(--bg-base)] px-3.5 py-2.5 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)] focus:border-[var(--text-dim)]"
                 autoFocus
               />
             </div>
@@ -1332,7 +1530,7 @@ function OnboardingModal({
             <a
               href="#"
               onClick={(e) => { e.preventDefault(); void window.sncode.openExternal(API_KEY_URLS[selectedProvider] || ""); }}
-              className="mb-5 inline-block text-[11px] text-[#555] underline decoration-[#333] transition hover:text-[#999]"
+              className="mb-5 inline-block text-[11px] text-[var(--text-dim)] underline decoration-[var(--text-dimmest)] transition hover:text-[var(--text-muted)]"
             >
               Get an API key from {selectedProvider === "anthropic" ? "console.anthropic.com" : "platform.openai.com"}
             </a>
@@ -1340,7 +1538,7 @@ function OnboardingModal({
             <button
               onClick={handleSaveKey}
               disabled={!apiKey.trim() || saving}
-              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white disabled:opacity-30"
+              className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)] disabled:opacity-30"
             >
               {saving ? "Saving..." : "Save & continue"}
             </button>
@@ -1351,18 +1549,18 @@ function OnboardingModal({
         {step === "complete" && (
           <div className="text-center">
             <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-emerald-500/10">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
             </div>
-            <h2 className="mb-1 text-[16px] font-semibold text-[#e0e0e0]">You're all set!</h2>
-            <p className="mb-6 text-[13px] text-[#555]">
-              Your {selectedProvider === "anthropic" ? "Anthropic" : "OpenAI"} API key has been saved. You can add more providers anytime from Settings.
+            <h2 className="mb-1 text-[16px] font-semibold text-[var(--text-primary)]">You&apos;re all set!</h2>
+            <p className="mb-6 text-[13px] text-[var(--text-dim)]">
+              {providerLabel} has been configured. You can add more providers anytime from Settings.
             </p>
 
             <button
               onClick={onComplete}
-              className="w-full rounded-xl bg-[#e0e0e0] px-4 py-2.5 text-[13px] font-medium text-[#141414] transition hover:bg-white"
+              className="w-full rounded-xl bg-[var(--bg-accent)] px-4 py-2.5 text-[13px] font-medium text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)]"
             >
               Start coding
             </button>
@@ -1725,10 +1923,10 @@ export default function App() {
 
   if (booting) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#141414]">
+      <div className="flex h-screen items-center justify-center bg-[var(--bg-base)]">
         <div className="text-center">
-          <div className="mb-2 text-lg font-semibold"><span className="text-white">Sn</span><span className="text-[#555]">Code</span></div>
-          <div className="text-[12px] text-[#404040]">Loading...</div>
+          <div className="mb-2 text-lg font-semibold"><span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span></div>
+          <div className="text-[12px] text-[var(--text-dimmer)]">Loading...</div>
         </div>
       </div>
     );
@@ -1743,6 +1941,7 @@ export default function App() {
     return (
       <OnboardingModal
         onSaveCredential={saveCredential}
+        onUpdateProvider={updateProvider}
         onComplete={async () => {
           await updateSettings({ onboardingComplete: true });
           void refresh();
@@ -1760,13 +1959,13 @@ export default function App() {
       <aside className="flex w-[260px] shrink-0 flex-col">
         <div className="drag-region flex h-12 shrink-0 items-center px-4 pt-1">
           <div className="no-drag flex items-center gap-1.5">
-            <span className="text-[14px] font-bold tracking-tight"><span className="text-white">Sn</span><span className="text-[#555]">Code</span></span>
+            <span className="text-[14px] font-bold tracking-tight"><span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span></span>
           </div>
-          <button onClick={() => setShowSettings(true)} className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-lg text-[#555] transition hover:bg-[#1e1e1e] hover:text-[#999]" title="Settings"><GearIcon /></button>
+          <button onClick={() => setShowSettings(true)} className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]" title="Settings"><GearIcon /></button>
         </div>
 
         <div className="px-3 pb-1.5">
-          <button onClick={() => selProject && addThread(selProject)} disabled={!selProject} className="w-full rounded-lg border border-[#252525] bg-[#1a1a1a] px-3 py-2 text-left text-[13px] text-[#808080] transition hover:border-[#333] hover:bg-[#1e1e1e] hover:text-[#b0b0b0] disabled:opacity-30">+ New thread</button>
+          <button onClick={() => selProject && addThread(selProject)} disabled={!selProject} className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-card)] px-3 py-2 text-left text-[13px] text-[var(--text-muted)] transition hover:border-[var(--border-active)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-label)] disabled:opacity-30">+ New thread</button>
         </div>
 
         <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
@@ -1785,14 +1984,14 @@ export default function App() {
                     });
                     setSelProjectId(project.id);
                   }}
-                  className="group flex w-full items-center gap-1.5 rounded-lg px-2.5 py-[6px] text-left transition hover:bg-[#1a1a1a]"
+                  className="group flex w-full items-center gap-1.5 rounded-lg px-2.5 py-[6px] text-left transition hover:bg-[var(--bg-card)]"
                 >
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" className={`shrink-0 text-[#444] transition-transform ${expanded ? "rotate-90" : ""}`}><path d="M3 1l4 4-4 4z" /></svg>
-                  <span className="flex-1 truncate text-[13px] font-medium text-[#b0b0b0]">{project.name}</span>
-                  <span className="text-[11px] text-[#404040]">{threads.length}</span>
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="currentColor" className={`shrink-0 text-[var(--text-dimmer)] transition-transform ${expanded ? "rotate-90" : ""}`}><path d="M3 1l4 4-4 4z" /></svg>
+                  <span className="flex-1 truncate text-[13px] font-medium text-[var(--text-label)]">{project.name}</span>
+                  <span className="text-[11px] text-[var(--text-dimmer)]">{threads.length}</span>
                 </button>
                 {expanded && (
-                  <div className="ml-3 space-y-px border-l border-[#222] pl-1.5">
+                  <div className="ml-3 space-y-px border-l border-[var(--border)] pl-1.5">
                     {threads.map((thread) => {
                       const active = thread.id === selThreadId;
                       const msgs = state.messages.filter((m) => m.threadId === thread.id);
@@ -1805,15 +2004,15 @@ export default function App() {
                               ev.preventDefault();
                               setContextMenu({ x: ev.clientX, y: ev.clientY, threadId: thread.id });
                             }}
-                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-[6px] pr-7 text-left text-[13px] transition ${active ? "bg-[#1e1e1e] text-[#e0e0e0]" : "text-[#808080] hover:bg-[#1a1a1a] hover:text-[#b0b0b0]"}`}
+                            className={`flex w-full items-center justify-between rounded-lg px-2.5 py-[6px] pr-7 text-left text-[13px] transition ${active ? "bg-[var(--bg-elevated)] text-[var(--text-primary)]" : "text-[var(--text-muted)] hover:bg-[var(--bg-card)] hover:text-[var(--text-label)]"}`}
                           >
                             <span className="flex min-w-0 items-center gap-1.5">
                               {runningThreads.has(thread.id) && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
                               <span className="min-w-0 truncate">{thread.title}</span>
                             </span>
-                            <span className="shrink-0 text-[10px] text-[#404040] group-hover:hidden">{last ? timeAgo(last.createdAt) : ""}</span>
+                            <span className="shrink-0 text-[10px] text-[var(--text-dimmer)] group-hover:hidden">{last ? timeAgo(last.createdAt) : ""}</span>
                           </button>
-                          <button onClick={(ev) => { ev.stopPropagation(); void deleteThread(thread.id); }} className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded-md p-1 text-[#505050] transition hover:bg-[#2a2a2a] hover:text-red-400 group-hover:block" title="Delete thread"><TrashIcon /></button>
+                          <button onClick={(ev) => { ev.stopPropagation(); void deleteThread(thread.id); }} className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded-md p-1 text-[var(--text-dim)] transition hover:bg-[var(--bg-active)] hover:text-red-400 group-hover:block" title="Delete thread"><TrashIcon /></button>
                         </div>
                       );
                     })}
@@ -1826,20 +2025,20 @@ export default function App() {
 
         {/* File tree panel */}
         {showFileTree && selProject && (
-          <div className="border-t border-[#1e1e1e]">
+          <div className="border-t border-[var(--border-subtle)]">
             <div className="flex items-center justify-between px-3 py-1.5">
-              <span className="text-[11px] font-medium text-[#606060]">Files</span>
-              <button onClick={() => setShowFileTree(false)} className="text-[#555] transition hover:text-[#999]"><XIcon /></button>
+              <span className="text-[11px] font-medium text-[var(--text-dim)]">Files</span>
+              <button onClick={() => setShowFileTree(false)} className="text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"><XIcon /></button>
             </div>
             <FileTreePanel projectPath={selProject.folderPath} onFileClick={openFileInSidebar} />
           </div>
         )}
 
-        <div className="border-t border-[#1e1e1e] p-3">
+        <div className="border-t border-[var(--border-subtle)] p-3">
           <div className="flex gap-2">
-            <button onClick={addProject} className="flex-1 rounded-lg px-3 py-2 text-left text-[13px] text-[#555] transition hover:bg-[#1a1a1a] hover:text-[#999]">+ Add project</button>
+            <button onClick={addProject} className="flex-1 rounded-lg px-3 py-2 text-left text-[13px] text-[var(--text-dim)] transition hover:bg-[var(--bg-card)] hover:text-[var(--text-muted)]">+ Add project</button>
             {selProject && (
-              <button onClick={() => setShowFileTree((v) => !v)} className={`grid h-8 w-8 place-items-center rounded-lg transition ${showFileTree ? "bg-[#1e1e1e] text-[#999]" : "text-[#555] hover:bg-[#1a1a1a] hover:text-[#999]"}`} title="Toggle file tree (Ctrl+B)">
+              <button onClick={() => setShowFileTree((v) => !v)} className={`grid h-8 w-8 place-items-center rounded-lg transition ${showFileTree ? "bg-[var(--bg-elevated)] text-[var(--text-muted)]" : "text-[var(--text-dim)] hover:bg-[var(--bg-card)] hover:text-[var(--text-muted)]"}`} title="Toggle file tree (Ctrl+B)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" /></svg>
               </button>
             )}
@@ -1851,12 +2050,12 @@ export default function App() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setContextMenu(null)} onContextMenu={(ev) => { ev.preventDefault(); setContextMenu(null); }} />
             <div
-              className="fixed z-50 min-w-[140px] overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] py-1 shadow-xl shadow-black/50"
+              className="fixed z-50 min-w-[140px] overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/50"
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               <button
                 onClick={() => { void deleteThread(contextMenu.threadId); setContextMenu(null); }}
-                className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-red-400 transition hover:bg-[#252525]"
+                className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-red-400 transition hover:bg-[var(--bg-active)]"
               >
                 <TrashIcon />
                 Delete thread
@@ -1871,14 +2070,14 @@ export default function App() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
 
           {/* Top bar */}
-          <div className="drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[#222] px-4">
+          <div className="drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
             <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
               {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
-              <span className="truncate text-[13px] font-medium text-[#ccc]">{selThread?.title ?? "Select a thread"}</span>
-              {selProject && <span className="shrink-0 rounded border border-[#282828] bg-[#1e1e1e] px-1.5 py-px text-[10px] text-[#606060]">{selProject.name}</span>}
+              <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
+              {selProject && <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
             </div>
             <div className="no-drag flex shrink-0 items-center gap-1.5">
-              <button onClick={() => setShowSearch((v) => !v)} className="grid h-7 w-7 place-items-center rounded-md text-[#555] transition hover:bg-[#222] hover:text-[#999]" title="Search (Ctrl+F)"><SearchIcon /></button>
+              <button onClick={() => setShowSearch((v) => !v)} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="Search (Ctrl+F)"><SearchIcon /></button>
 
               {selProject && gitStatus.isRepo ? (
                 <>
@@ -1892,18 +2091,18 @@ export default function App() {
 
                   {/* Branch selector */}
                   <div className="relative">
-                    <button onClick={() => setShowBranchDropdown((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[#606060] transition hover:bg-[#222] hover:text-[#999]">
+                    <button onClick={() => setShowBranchDropdown((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
                       <GitBranchIcon /><span className="max-w-[100px] truncate">{currentBranch || "main"}</span><ChevronIcon open={showBranchDropdown} />
                     </button>
                     {showBranchDropdown && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setShowBranchDropdown(false)} />
-                        <div className="absolute right-0 top-full z-20 mt-1 max-h-48 w-44 overflow-auto rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] py-1 shadow-xl shadow-black/40">
+                        <div className="absolute right-0 top-full z-20 mt-1 max-h-48 w-44 overflow-auto rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
                           {gitBranches.map((branch) => (
                             <button
                               key={branch}
                               onClick={() => { void handleGitAction("checkout", { branch }); setShowBranchDropdown(false); }}
-                              className={`flex w-full items-center px-3 py-[5px] text-left text-[11px] transition hover:bg-[#252525] ${branch === currentBranch ? "text-[#e0e0e0]" : "text-[#707070]"}`}
+                              className={`flex w-full items-center px-3 py-[5px] text-left text-[11px] transition hover:bg-[var(--bg-active)] ${branch === currentBranch ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
                             >
                               {branch === currentBranch && <span className="mr-1.5 text-emerald-400">*</span>}
                               {branch}
@@ -1915,7 +2114,7 @@ export default function App() {
                   </div>
 
                   {/* Diff button */}
-                  <button onClick={openDiffInSidebar} className="grid h-7 w-7 place-items-center rounded-md text-[#555] transition hover:bg-[#222] hover:text-[#999]" title="View changes">
+                  <button onClick={openDiffInSidebar} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="View changes">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 3v18M3 12h18" />
                     </svg>
@@ -1923,7 +2122,7 @@ export default function App() {
 
                   {/* Git actions dropdown */}
                   <div className="relative">
-                    <button onClick={() => setShowGitActions((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[#606060] transition hover:bg-[#222] hover:text-[#999]">
+                    <button onClick={() => setShowGitActions((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
                       </svg>
@@ -1931,25 +2130,25 @@ export default function App() {
                     {showGitActions && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setShowGitActions(false)} />
-                        <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] py-1 shadow-xl shadow-black/40">
-                          <button onClick={() => { setShowCommitModal(true); setShowGitActions(false); }} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[#b0b0b0] transition hover:bg-[#252525]">
+                        <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
+                          <button onClick={() => { setShowCommitModal(true); setShowGitActions(false); }} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4" /><line x1="1.05" y1="12" x2="7" y2="12" /><line x1="17.01" y1="12" x2="22.96" y2="12" /></svg>
                             Commit
                           </button>
-                          <button onClick={() => handleGitAction("pull")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[#b0b0b0] transition hover:bg-[#252525]">
+                          <button onClick={() => handleGitAction("pull")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
                             Pull
                           </button>
-                          <button onClick={() => handleGitAction("push")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[#b0b0b0] transition hover:bg-[#252525]">
+                          <button onClick={() => handleGitAction("push")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 7 12 3 8 7" /><line x1="12" y1="3" x2="12" y2="15" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
                             Push
                           </button>
-                          <div className="mx-2 my-1 h-px bg-[#252525]" />
-                          <button onClick={() => handleGitAction("stash")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[#808080] transition hover:bg-[#252525]">
+                          <div className="mx-2 my-1 h-px bg-[var(--bg-active)]" />
+                          <button onClick={() => handleGitAction("stash")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
                             Stash
                           </button>
-                          <button onClick={() => handleGitAction("stash-pop")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[#808080] transition hover:bg-[#252525]">
+                          <button onClick={() => handleGitAction("stash-pop")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="7.5 4.21 12 6.81 16.5 4.21" /></svg>
                             Stash Pop
                           </button>
@@ -1962,7 +2161,7 @@ export default function App() {
                 /* No repo - show init button */
                 <button
                   onClick={() => handleGitAction("init")}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[#606060] transition hover:bg-[#222] hover:text-[#999]"
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
                   title="Initialize git repository"
                 >
                   <GitBranchIcon />
@@ -1972,7 +2171,7 @@ export default function App() {
 
               {/* Git action feedback toast */}
               {gitActionFeedback && (
-                <span className="rounded-md bg-[#252525] px-2 py-0.5 text-[10px] text-[#b0b0b0] animate-pulse">{gitActionFeedback}</span>
+                <span className="rounded-md bg-[var(--bg-active)] px-2 py-0.5 text-[10px] text-[var(--text-label)] animate-pulse">{gitActionFeedback}</span>
               )}
             </div>
           </div>
@@ -1985,8 +2184,8 @@ export default function App() {
             <div className="mx-auto max-w-[820px] px-5 py-5">
               {threadMessages.length === 0 && !streamChunk ? (
                 <div className="mt-32 text-center">
-                  <div className="mb-3 text-[22px] font-semibold text-[#ccc]">What are you building?</div>
-                  <p className="text-[13px] text-[#505050]">Ask anything about your project — or start with a suggestion.</p>
+                  <div className="mb-3 text-[22px] font-semibold text-[var(--text-heading)]">What are you building?</div>
+                  <p className="text-[13px] text-[var(--text-dim)]">Ask anything about your project — or start with a suggestion.</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -2003,7 +2202,7 @@ export default function App() {
                         ) : isUser ? (
                           <div className="flex justify-end">
                             <div className="max-w-[80%]">
-                              <div className="rounded-2xl rounded-br-sm bg-[#222] px-4 py-2.5">
+                              <div className="rounded-2xl rounded-br-sm bg-[var(--bg-user-bubble)] px-4 py-2.5">
                                 {msg.images && msg.images.length > 0 && (
                                   <div className="mb-2 flex flex-wrap gap-2">
                                     {msg.images.map((img, i) => (
@@ -2011,31 +2210,31 @@ export default function App() {
                                         key={i}
                                         src={`data:${img.mediaType};base64,${img.data}`}
                                         alt={img.name || "Attachment"}
-                                        className="max-h-[200px] max-w-full rounded-lg border border-[#333] object-contain"
+                                        className="max-h-[200px] max-w-full rounded-lg border border-[var(--border-active)] object-contain"
                                       />
                                     ))}
                                   </div>
                                 )}
                                 {msg.content && (
-                                  <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-[#e8e8e8]">
+                                  <pre className="whitespace-pre-wrap font-sans text-[13px] leading-relaxed text-[var(--text-bright)]">
                                     {searchHighlight ? <HighlightText text={msg.content} query={searchHighlight} /> : msg.content}
                                   </pre>
                                 )}
                               </div>
-                              <div className="mt-0.5 text-right text-[10px] text-[#333]">
+                              <div className="mt-0.5 text-right text-[10px] text-[var(--text-dimmest)]">
                                 {new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                               </div>
                             </div>
                           </div>
                         ) : (
                           <div>
-                            <div className={`text-[13px] ${isError ? "text-red-400/90" : "text-[#c0c0c0]"}`}>
+                            <div className={`text-[13px] ${isError ? "text-red-400/90" : "text-[var(--text-secondary)]"}`}>
                               <Markdown content={msg.content} />
                             </div>
-                            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[#333]">
+                            <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--text-dimmest)]">
                               <span>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                               {(msg.metadata?.inputTokens || msg.metadata?.outputTokens) && (
-                                <span className="text-[#2a2a2a]" title={`Input: ${msg.metadata.inputTokens?.toLocaleString() ?? 0} | Output: ${msg.metadata.outputTokens?.toLocaleString() ?? 0}`}>
+                                <span className="text-[var(--text-dimmest)]" title={`Input: ${msg.metadata.inputTokens?.toLocaleString() ?? 0} | Output: ${msg.metadata.outputTokens?.toLocaleString() ?? 0}`}>
                                   {((msg.metadata.inputTokens ?? 0) + (msg.metadata.outputTokens ?? 0)).toLocaleString()} tokens
                                 </span>
                               )}
@@ -2048,9 +2247,9 @@ export default function App() {
 
                   {/* Streaming preview */}
                   {streamChunk && (
-                    <div className="text-[13px] text-[#c0c0c0]">
+                    <div className="text-[13px] text-[var(--text-secondary)]">
                       <Markdown content={streamChunk} />
-                      <span className="inline-block animate-pulse text-[#404040]">|</span>
+                      <span className="inline-block animate-pulse text-[var(--text-dimmer)]">|</span>
                     </div>
                   )}
 
@@ -2058,11 +2257,11 @@ export default function App() {
                   {isBusy && !streamChunk && (
                     <div className="flex items-center gap-2 py-1">
                       <div className="flex gap-[3px]">
-                        <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "0ms" }} />
-                        <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "150ms" }} />
-                        <div className="h-1 w-1 animate-bounce rounded-full bg-[#404040]" style={{ animationDelay: "300ms" }} />
+                        <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "0ms" }} />
+                        <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "150ms" }} />
+                        <div className="h-1 w-1 animate-bounce rounded-full bg-[var(--text-dimmer)]" style={{ animationDelay: "300ms" }} />
                       </div>
-                      <span className="text-[11px] text-[#404040]">{statusText}</span>
+                      <span className="text-[11px] text-[var(--text-dimmer)]">{statusText}</span>
                     </div>
                   )}
 
@@ -2079,7 +2278,7 @@ export default function App() {
             </div>
             <form onSubmit={send} className="mx-auto max-w-[820px]">
               <div
-                className={`rounded-xl border bg-[#1e1e1e] transition-colors focus-within:border-[#333] ${dragOver ? "border-blue-500/50 bg-[#1a1f2e]" : "border-[#282828]"}`}
+                className={`rounded-xl border bg-[var(--bg-elevated)] transition-colors focus-within:border-[var(--border-active)] ${dragOver ? "border-blue-500/50 bg-[var(--bg-drag-highlight)]" : "border-[var(--border)]"}`}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={async (e) => {
@@ -2098,17 +2297,17 @@ export default function App() {
                         <img
                           src={`data:${img.mediaType};base64,${img.data}`}
                           alt={img.name || "Attachment"}
-                          className="h-16 w-16 rounded-lg border border-[#333] object-cover"
+                          className="h-16 w-16 rounded-lg border border-[var(--border-active)] object-cover"
                         />
                         <button
                           type="button"
                           onClick={() => removeImage(i)}
-                          className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full bg-[#333] text-[#999] transition hover:bg-red-500 hover:text-white group-hover:flex"
+                          className="absolute -right-1.5 -top-1.5 hidden h-4 w-4 items-center justify-center rounded-full bg-[var(--bg-stop)] text-[var(--text-muted)] transition hover:bg-red-500 hover:text-white group-hover:flex"
                         >
                           <XIcon />
                         </button>
                         {img.name && (
-                          <div className="absolute inset-x-0 bottom-0 truncate rounded-b-lg bg-black/60 px-1 py-0.5 text-[9px] text-[#999]">{img.name}</div>
+                          <div className="absolute inset-x-0 bottom-0 truncate rounded-b-lg bg-black/60 px-1 py-0.5 text-[9px] text-[var(--text-muted)]">{img.name}</div>
                         )}
                       </div>
                     ))}
@@ -2136,7 +2335,7 @@ export default function App() {
                   }}
                   placeholder={pendingImages.length > 0 ? "Add a message or just send the image..." : "Type your message here..."}
                   rows={2}
-                  className="w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[13px] leading-relaxed text-[#e0e0e0] outline-none placeholder:text-[#404040]"
+                  className="w-full resize-none bg-transparent px-4 pt-3 pb-1.5 text-[13px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)]"
                 />
                 <input
                   ref={fileInputRef}
@@ -2150,24 +2349,24 @@ export default function App() {
                   }}
                 />
                 <div className="flex items-center px-3 pb-2.5">
-                  <button type="button" onClick={() => fileInputRef.current?.click()} className="grid h-7 w-7 place-items-center rounded-md text-[#505050] transition hover:bg-[#252525] hover:text-[#999]" title="Attach image">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-active)] hover:text-[var(--text-muted)]" title="Attach image">
                     <PaperclipIcon />
                   </button>
-                  <div className="mx-1 h-3.5 w-px bg-[#252525]" />
+                  <div className="mx-1 h-3.5 w-px bg-[var(--bg-active)]" />
                   <div className="relative">
-                    <button type="button" onClick={() => setShowModelPicker((v) => !v)} className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-[#606060] transition hover:bg-[#252525] hover:text-[#999]">
+                    <button type="button" onClick={() => setShowModelPicker((v) => !v)} className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-[var(--text-dim)] transition hover:bg-[var(--bg-active)] hover:text-[var(--text-muted)]">
                       {activeModelLabel(state.providers)}<ChevronIcon open={showModelPicker} />
                     </button>
                     {showModelPicker && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setShowModelPicker(false)} />
-                        <div className="absolute bottom-full left-0 z-20 mb-1 w-48 overflow-hidden rounded-lg border border-[#2a2a2a] bg-[#1e1e1e] py-1 shadow-xl shadow-black/40">
+                        <div className="absolute bottom-full left-0 z-20 mb-1 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
                           {availableModels(state.providers).length === 0 ? (
-                            <div className="px-3 py-2 text-[11px] text-[#404040]">No providers authorized</div>
+                            <div className="px-3 py-2 text-[11px] text-[var(--text-dimmer)]">No providers authorized</div>
                           ) : (
                             availableModels(state.providers).map((m) => (
-                              <button key={m.id} type="button" onClick={() => pickModel(m.id)} className={`flex w-full items-center justify-between px-3 py-[6px] text-left text-[12px] transition hover:bg-[#252525] ${m.id === activeModelId(state.providers) ? "text-[#e0e0e0]" : "text-[#707070]"}`}>
-                                <span>{m.label}</span><span className="text-[10px] text-[#404040]">{m.provider === "anthropic" ? "Anthropic" : "OpenAI"}</span>
+                              <button key={m.id} type="button" onClick={() => pickModel(m.id)} className={`flex w-full items-center justify-between px-3 py-[6px] text-left text-[12px] transition hover:bg-[var(--bg-active)] ${m.id === activeModelId(state.providers) ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}>
+                                <span>{m.label}</span><span className="text-[10px] text-[var(--text-dimmer)]">{m.provider === "anthropic" ? "Anthropic" : "OpenAI"}</span>
                               </button>
                             ))
                           )}
@@ -2175,12 +2374,12 @@ export default function App() {
                       </>
                     )}
                   </div>
-                  <div className="mx-1 h-3.5 w-px bg-[#252525]" />
-                  <button type="button" onClick={() => setPermission((p) => (p === "full" ? "approve" : "full"))} className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-[#606060] transition hover:bg-[#252525] hover:text-[#999]">
+                  <div className="mx-1 h-3.5 w-px bg-[var(--bg-active)]" />
+                  <button type="button" onClick={() => setPermission((p) => (p === "full" ? "approve" : "full"))} className="flex items-center gap-1 rounded-md px-2 py-1 text-[12px] text-[var(--text-dim)] transition hover:bg-[var(--bg-active)] hover:text-[var(--text-muted)]">
                     {permission === "full" ? <UnlockIcon /> : <LockIcon />}
                     {permission === "full" ? "Full access" : "Ask first"}
                   </button>
-                  <div className="mx-1 h-3.5 w-px bg-[#252525]" />
+                  <div className="mx-1 h-3.5 w-px bg-[var(--bg-active)]" />
                   <ThinkingLevelPicker
                     level={state.settings.thinkingLevel || "none"}
                     provider={state.providers.find((p) => p.enabled)?.id ?? "anthropic"}
@@ -2188,9 +2387,9 @@ export default function App() {
                   />
                   <div className="ml-auto">
                     {isBusy ? (
-                      <button type="button" onClick={cancel} className="grid h-8 w-8 place-items-center rounded-full bg-[#333] text-[#e0e0e0] transition hover:bg-[#444]" title="Stop"><StopIcon /></button>
+                      <button type="button" onClick={cancel} className="grid h-8 w-8 place-items-center rounded-full bg-[var(--bg-stop)] text-[var(--text-primary)] transition hover:bg-[var(--bg-stop-hover)]" title="Stop"><StopIcon /></button>
                     ) : (
-                      <button type="submit" disabled={!selThreadId || (!msgInput.trim() && pendingImages.length === 0)} className="grid h-8 w-8 place-items-center rounded-full bg-[#e0e0e0] text-[#141414] transition hover:bg-white disabled:opacity-20"><SendIcon /></button>
+                      <button type="submit" disabled={!selThreadId || (!msgInput.trim() && pendingImages.length === 0)} className="grid h-8 w-8 place-items-center rounded-full bg-[var(--bg-accent)] text-[var(--text-on-accent)] transition hover:bg-[var(--bg-accent-hover)] disabled:opacity-20"><SendIcon /></button>
                     )}
                   </div>
                 </div>
@@ -2202,7 +2401,7 @@ export default function App() {
 
       {/* ─── Right Sidebar ─── */}
       {rightSidebar && (
-        <div className="flex w-[380px] shrink-0 flex-col border-l border-[#1e1e1e] bg-[#161616]">
+        <div className="flex w-[380px] shrink-0 flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-surface)]">
           {rightSidebar.type === "file" && rightSidebar.filePath && (
             <RightSidebarFileView
               filePath={rightSidebar.filePath}
@@ -2229,13 +2428,13 @@ export default function App() {
       {showCommitModal && (
         <>
           <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setShowCommitModal(false)} />
-          <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[#2a2a2a] bg-[#1e1e1e] p-5 shadow-2xl">
-            <h3 className="mb-3 text-[14px] font-medium text-[#e0e0e0]">Commit Changes</h3>
+          <div className="fixed left-1/2 top-1/2 z-50 w-[400px] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-5 shadow-2xl">
+            <h3 className="mb-3 text-[14px] font-medium text-[var(--text-primary)]">Commit Changes</h3>
             <input
               value={commitMsg}
               onChange={(e) => setCommitMsg(e.target.value)}
               placeholder="Commit message..."
-              className="mb-3 w-full rounded-lg border border-[#333] bg-[#141414] px-3 py-2 text-[13px] text-[#e0e0e0] outline-none placeholder:text-[#444] focus:border-[#555]"
+              className="mb-3 w-full rounded-lg border border-[var(--border-active)] bg-[var(--bg-base)] px-3 py-2 text-[13px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)] focus:border-[var(--text-dim)]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && commitMsg.trim()) {
                   void handleGitAction("commit", { message: commitMsg.trim() });
@@ -2246,7 +2445,7 @@ export default function App() {
               autoFocus
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowCommitModal(false)} className="rounded-lg px-3 py-1.5 text-[12px] text-[#808080] transition hover:bg-[#252525]">Cancel</button>
+              <button onClick={() => setShowCommitModal(false)} className="rounded-lg px-3 py-1.5 text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">Cancel</button>
               <button
                 onClick={() => {
                   if (commitMsg.trim()) {
@@ -2256,7 +2455,7 @@ export default function App() {
                   }
                 }}
                 disabled={!commitMsg.trim()}
-                className="rounded-lg bg-[#333] px-3 py-1.5 text-[12px] text-[#e0e0e0] transition hover:bg-[#444] disabled:opacity-30"
+                className="rounded-lg bg-[var(--bg-stop)] px-3 py-1.5 text-[12px] text-[var(--text-primary)] transition hover:bg-[var(--bg-stop-hover)] disabled:opacity-30"
               >
                 Commit
               </button>

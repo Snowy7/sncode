@@ -55,6 +55,10 @@ function createWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    // Allow DevTools windows to open
+    if (url === "about:blank" || url.startsWith("devtools://")) {
+      return { action: "allow" };
+    }
     void shell.openExternal(url);
     return { action: "deny" };
   });
@@ -65,11 +69,16 @@ function createWindow() {
 
   // DevTools shortcuts: F12, Ctrl+Shift+I, Cmd+Option+I
   mainWindow.webContents.on("before-input-event", (_event, input) => {
-    if (input.key === "F12" && input.type === "keyDown") {
-      mainWindow?.webContents.toggleDevTools();
-    }
-    if (input.key === "I" && input.type === "keyDown" && input.shift && (input.control || input.meta)) {
-      mainWindow?.webContents.toggleDevTools();
+    if (input.type !== "keyDown") return;
+    const wantsDevTools =
+      input.key === "F12" ||
+      (input.key === "I" && input.shift && (input.control || input.meta));
+    if (wantsDevTools) {
+      if (mainWindow?.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow?.webContents.openDevTools({ mode: "detach" });
+      }
     }
   });
 
@@ -250,7 +259,7 @@ function registerIpc() {
   });
 
   ipcMain.handle("app:open-devtools", () => {
-    mainWindow?.webContents.openDevTools();
+    mainWindow?.webContents.openDevTools({ mode: "detach" });
   });
 
   ipcMain.handle("git:branches", async (_event, projectPath: unknown) => {

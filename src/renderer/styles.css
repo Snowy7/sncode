@@ -12,43 +12,97 @@
 
 :root {
   --bg-base: #141414;
+  --bg-surface: #161616;
   --bg-card: #1a1a1a;
   --bg-elevated: #1e1e1e;
-  --bg-input: #141414;
-  --bg-hover: #1a1a1a;
+  --bg-input: #111;
+  --bg-hover: #1e1e1e;
+  --bg-active: #252525;
   --bg-code: #0e0e0e;
+  --bg-user-bubble: #222;
+  --bg-accent: #e0e0e0;
+  --bg-accent-hover: #ffffff;
+  --bg-stop: #333;
+  --bg-stop-hover: #444;
+
   --border: #222;
-  --border-hover: #333;
+  --border-subtle: #1e1e1e;
+  --border-active: #333;
+  --border-strong: #2a2a2a;
+
   --text-primary: #e0e0e0;
+  --text-bright: #e8e8e8;
   --text-secondary: #c0c0c0;
+  --text-heading: #ccc;
+  --text-label: #b0b0b0;
   --text-muted: #808080;
   --text-dim: #555;
-  --text-dimmer: #404040;
+  --text-dimmer: #444;
   --text-dimmest: #333;
-  --user-bubble: #222;
+  --text-on-accent: #141414;
+
+  --brand-sn: #ffffff;
+  --brand-code: #555;
+
   --scrollbar-thumb: rgba(255, 255, 255, 0.06);
   --scrollbar-hover: rgba(255, 255, 255, 0.12);
+
+  --divider: #252525;
+
+  --toggle-on: #34c759;
+  --success: #10b981;
+  --bg-diff-header: #161b2e;
+  --bg-drag-highlight: #1a1f2e;
+  --check-mark: #161616;
+
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --bg-base: #f5f5f5;
+  --bg-base: #f2f2f2;
+  --bg-surface: #f8f8f8;
   --bg-card: #ffffff;
-  --bg-elevated: #f0f0f0;
+  --bg-elevated: #f5f5f5;
   --bg-input: #ffffff;
-  --bg-hover: #f0f0f0;
+  --bg-hover: #ebebeb;
+  --bg-active: #e0e0e0;
   --bg-code: #f6f8fa;
-  --border: #e0e0e0;
-  --border-hover: #ccc;
+  --bg-user-bubble: #e8e8e8;
+  --bg-accent: #1a1a1a;
+  --bg-accent-hover: #333;
+  --bg-stop: #d0d0d0;
+  --bg-stop-hover: #bbb;
+
+  --border: #ddd;
+  --border-subtle: #e8e8e8;
+  --border-active: #bbb;
+  --border-strong: #d0d0d0;
+
   --text-primary: #1a1a1a;
+  --text-bright: #111;
   --text-secondary: #333;
+  --text-heading: #222;
+  --text-label: #555;
   --text-muted: #666;
   --text-dim: #888;
   --text-dimmer: #aaa;
   --text-dimmest: #ccc;
-  --user-bubble: #e8e8e8;
+  --text-on-accent: #ffffff;
+
+  --brand-sn: #1a1a1a;
+  --brand-code: #999;
+
   --scrollbar-thumb: rgba(0, 0, 0, 0.1);
   --scrollbar-hover: rgba(0, 0, 0, 0.2);
+
+  --divider: #e0e0e0;
+
+  --toggle-on: #34c759;
+  --success: #10b981;
+  --bg-diff-header: #e8eaf6;
+  --bg-drag-highlight: #dde3f0;
+  --check-mark: #ffffff;
+
   color-scheme: light;
 }
 
@@ -94,3 +148,13 @@ body,
 [data-theme="light"] .hljs-number { color: #0550ae; }
 [data-theme="light"] .hljs-function { color: #8250df; }
 [data-theme="light"] .hljs-title { color: #8250df; }
+
+/* Range input styling for theme */
+[data-theme="light"] input[type="range"] {
+  accent-color: #1a1a1a;
+}
+
+/* Select dropdown in light mode */
+[data-theme="light"] select {
+  color-scheme: light;
+}

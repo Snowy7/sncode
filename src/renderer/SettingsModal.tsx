@@ -105,22 +105,22 @@ function SettingSlider({ label, description, value, min, max, step, display, onC
   onChange: (v: number) => void;
 }) {
   return (
-    <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
+    <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-[13px] font-medium text-[#d0d0d0]">{label}</div>
-          <div className="mt-0.5 text-[11px] text-[#505050]">{description}</div>
+          <div className="text-[13px] font-medium text-[var(--text-primary)]">{label}</div>
+          <div className="mt-0.5 text-[11px] text-[var(--text-dim)]">{description}</div>
         </div>
-        <span className="ml-3 shrink-0 rounded bg-[#1e1e1e] px-2 py-0.5 font-mono text-[12px] text-[#808080]">
+        <span className="ml-3 shrink-0 rounded bg-[var(--bg-elevated)] px-2 py-0.5 font-mono text-[12px] text-[var(--text-muted)]">
           {display ?? value.toLocaleString()}
         </span>
       </div>
       <input
         type="range" min={min} max={max} step={step}
         value={value} onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-3 w-full accent-[#e0e0e0]"
+        className="mt-3 w-full accent-[var(--text-primary)]"
       />
-      <div className="mt-1 flex justify-between text-[10px] text-[#383838]">
+      <div className="mt-1 flex justify-between text-[10px] text-[var(--text-dimmest)]">
         <span>{min.toLocaleString()}</span><span>{max.toLocaleString()}</span>
       </div>
     </div>
@@ -243,13 +243,13 @@ export default function SettingsModal({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="flex h-[560px] w-full max-w-[680px] overflow-hidden rounded-xl border border-[#252525] bg-[#141414] shadow-2xl shadow-black/60">
+      <div className="flex h-[560px] w-full max-w-[680px] overflow-hidden rounded-xl border border-[var(--border-strong)] bg-[var(--bg-base)] shadow-2xl shadow-black/60">
 
         {/* ── Sidebar ── */}
-        <div className="flex w-[180px] shrink-0 flex-col border-r border-[#1e1e1e] bg-[#131313]">
+        <div className="flex w-[180px] shrink-0 flex-col border-r border-[var(--border-subtle)] bg-[var(--bg-base)]">
           {/* Header */}
           <div className="flex h-12 shrink-0 items-center px-4">
-            <span className="text-[13px] font-semibold text-[#e0e0e0]">Settings</span>
+            <span className="text-[13px] font-semibold text-[var(--text-primary)]">Settings</span>
           </div>
 
           {/* Nav */}
@@ -263,13 +263,13 @@ export default function SettingsModal({
                   onClick={() => setTab(t.id)}
                   className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-[7px] text-left text-[12px] transition ${
                     active
-                      ? "bg-[#1e1e1e] text-[#e0e0e0] font-medium"
+                      ? "bg-[var(--bg-elevated)] text-[var(--text-primary)] font-medium"
                       : t.danger
-                        ? "text-[#555] hover:bg-[#1a1a1a] hover:text-red-400/80"
-                        : "text-[#555] hover:bg-[#1a1a1a] hover:text-[#999]"
+                        ? "text-[var(--text-dim)] hover:bg-[var(--bg-card)] hover:text-red-400/80"
+                        : "text-[var(--text-dim)] hover:bg-[var(--bg-card)] hover:text-[var(--text-muted)]"
                   }`}
                 >
-                  <span className={active ? "text-[#999]" : ""}><Icon /></span>
+                  <span className={active ? "text-[var(--text-muted)]" : ""}><Icon /></span>
                   {t.label}
                 </button>
               );
@@ -277,9 +277,9 @@ export default function SettingsModal({
           </nav>
 
           {/* Version */}
-          <div className="border-t border-[#1e1e1e] px-4 py-3">
-            <div className="text-[10px] text-[#333]">
-              <span className="font-medium text-[#444]">Sn</span><span className="text-[#333]">Code</span> v0.1.0
+          <div className="border-t border-[var(--border-subtle)] px-4 py-3">
+            <div className="text-[10px] text-[var(--text-dimmest)]">
+              <span className="font-medium text-[var(--text-dimmer)]">Sn</span><span className="text-[var(--text-dimmest)]">Code</span> v0.1.0
             </div>
           </div>
         </div>
@@ -287,13 +287,13 @@ export default function SettingsModal({
         {/* ── Content ── */}
         <div className="flex min-h-0 flex-1 flex-col">
           {/* Content header + close */}
-          <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#1e1e1e] px-5">
-            <span className="text-[13px] font-medium text-[#b0b0b0]">
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--border-subtle)] px-5">
+            <span className="text-[13px] font-medium text-[var(--text-label)]">
               {tabs.find((t) => t.id === tab)?.label}
             </span>
             <button
               onClick={onClose}
-              className="grid h-6 w-6 place-items-center rounded-md text-[#444] transition hover:bg-[#1e1e1e] hover:text-[#999]"
+              className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-dimmer)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]"
             >
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                 <path d="M1.5 1.5l9 9m0-9l-9 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
@@ -309,23 +309,23 @@ export default function SettingsModal({
               <div className="space-y-5">
                 {/* Theme */}
                 <div>
-                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[#444]">Appearance</div>
-                  <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
+                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[var(--text-dimmer)]">Appearance</div>
+                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-[13px] font-medium text-[#d0d0d0]">Theme</div>
-                        <div className="mt-0.5 text-[11px] text-[#505050]">Switch between dark and light mode</div>
+                        <div className="text-[13px] font-medium text-[var(--text-primary)]">Theme</div>
+                        <div className="mt-0.5 text-[11px] text-[var(--text-dim)]">Switch between dark and light mode</div>
                       </div>
-                      <div className="flex rounded-lg bg-[#111] p-0.5">
+                      <div className="flex rounded-lg bg-[var(--bg-input)] p-0.5">
                         <button
                           onClick={() => { setThemeMode("dark"); void onUpdateSettings({ theme: "dark" }); }}
-                          className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition ${themeMode === "dark" ? "bg-[#252525] text-[#d0d0d0] shadow-sm" : "text-[#555] hover:text-[#999]"}`}
+                          className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition ${themeMode === "dark" ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-dim)] hover:text-[var(--text-muted)]"}`}
                         >
                           Dark
                         </button>
                         <button
                           onClick={() => { setThemeMode("light"); void onUpdateSettings({ theme: "light" }); }}
-                          className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition ${themeMode === "light" ? "bg-[#252525] text-[#d0d0d0] shadow-sm" : "text-[#555] hover:text-[#999]"}`}
+                          className={`rounded-md px-3 py-1.5 text-[11px] font-medium transition ${themeMode === "light" ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-dim)] hover:text-[var(--text-muted)]"}`}
                         >
                           Light
                         </button>
@@ -336,19 +336,19 @@ export default function SettingsModal({
 
                 {/* Developer */}
                 <div>
-                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[#444]">Developer</div>
-                  <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
+                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[var(--text-dimmer)]">Developer</div>
+                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-[13px] font-medium text-[#d0d0d0]">DevTools</div>
-                        <div className="mt-0.5 text-[11px] text-[#505050]">
+                        <div className="text-[13px] font-medium text-[var(--text-primary)]">DevTools</div>
+                        <div className="mt-0.5 text-[11px] text-[var(--text-dim)]">
                           Open Chromium developer tools
-                          <span className="ml-1.5 rounded border border-[#252525] bg-[#1a1a1a] px-1 py-px text-[9px] text-[#444]">F12</span>
+                          <span className="ml-1.5 rounded border border-[var(--border-strong)] bg-[var(--bg-card)] px-1 py-px text-[9px] text-[var(--text-dimmer)]">F12</span>
                         </div>
                       </div>
                       <button
                         onClick={() => void window.sncode.openDevTools()}
-                        className="rounded-lg border border-[#252525] bg-[#1a1a1a] px-3.5 py-1.5 text-[12px] text-[#b0b0b0] transition hover:bg-[#1e1e1e] hover:text-[#d0d0d0]"
+                        className="rounded-lg border border-[var(--border-strong)] bg-[var(--bg-card)] px-3.5 py-1.5 text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-primary)]"
                       >
                         Open
                       </button>
@@ -358,8 +358,8 @@ export default function SettingsModal({
 
                 {/* Keyboard shortcuts reference */}
                 <div>
-                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[#444]">Shortcuts</div>
-                  <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
+                  <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-[var(--text-dimmer)]">Shortcuts</div>
+                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
                     <div className="space-y-2.5 text-[12px]">
                       {[
                         ["Ctrl+N", "New thread"],
@@ -370,8 +370,8 @@ export default function SettingsModal({
                         ["F12", "Toggle DevTools"],
                       ].map(([key, desc]) => (
                         <div key={key} className="flex items-center justify-between">
-                          <span className="text-[#606060]">{desc}</span>
-                          <kbd className="rounded border border-[#252525] bg-[#1a1a1a] px-1.5 py-0.5 font-mono text-[10px] text-[#555]">{key}</kbd>
+                          <span className="text-[var(--text-dim)]">{desc}</span>
+                          <kbd className="rounded border border-[var(--border-strong)] bg-[var(--bg-card)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--text-dim)]">{key}</kbd>
                         </div>
                       ))}
                     </div>
@@ -383,43 +383,43 @@ export default function SettingsModal({
             {/* ══════════ Providers ══════════ */}
             {tab === "providers" && (
               <div className="space-y-4">
-                <p className="text-[11px] text-[#505050]">
+                <p className="text-[11px] text-[var(--text-dim)]">
                   Configure AI providers and authentication. Credentials are stored in your OS keychain.
                 </p>
                 {providers.map((provider) => {
                   const fb = feedback[provider.id];
                   return (
-                    <div key={provider.id} className="rounded-lg border border-[#1e1e1e] bg-[#161616]">
+                    <div key={provider.id} className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)]">
                       {/* Provider header */}
                       <div className="flex items-center justify-between px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[#1a1a1a] text-[14px] font-bold text-[#555]">
+                          <div className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--bg-card)] text-[14px] font-bold text-[var(--text-dim)]">
                             {provider.id === "anthropic" ? "A" : "O"}
                           </div>
                           <div>
-                            <div className="text-[13px] font-medium text-[#d0d0d0]">{providerName(provider.id)}</div>
-                            <div className="text-[11px] text-[#505050]">{providerDescription(provider.id)}</div>
+                            <div className="text-[13px] font-medium text-[var(--text-primary)]">{providerName(provider.id)}</div>
+                            <div className="text-[11px] text-[var(--text-dim)]">{providerDescription(provider.id)}</div>
                           </div>
                         </div>
                         <button
                           onClick={() => onUpdateProvider(provider, { enabled: !provider.enabled })}
-                          className={`relative h-[22px] w-[40px] rounded-full transition-colors ${provider.enabled ? "bg-[#34c759]" : "bg-[#2a2a2a]"}`}
+                          className={`relative h-[22px] w-[40px] rounded-full transition-colors ${provider.enabled ? "bg-[var(--toggle-on)]" : "bg-[var(--bg-active)]"}`}
                         >
                           <div className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${provider.enabled ? "translate-x-[20px]" : "translate-x-[3px]"}`}/>
                         </button>
                       </div>
 
-                      <div className="h-px bg-[#1e1e1e]" />
+                      <div className="h-px bg-[var(--bg-elevated)]" />
 
                       {/* Auth section */}
                       <div className="px-4 py-3">
-                        <div className="mb-3 flex rounded-lg bg-[#111] p-0.5">
+                        <div className="mb-3 flex rounded-lg bg-[var(--bg-input)] p-0.5">
                           {(["apiKey", "subscriptionToken"] as AuthMode[]).map((mode) => (
                             <button
                               key={mode}
                               onClick={() => onUpdateProvider(provider, { authMode: mode })}
                               className={`flex-1 rounded-md px-3 py-1.5 text-[11px] font-medium transition ${
-                                provider.authMode === mode ? "bg-[#252525] text-[#d0d0d0] shadow-sm" : "text-[#555] hover:text-[#999]"
+                                provider.authMode === mode ? "bg-[var(--bg-active)] text-[var(--text-primary)] shadow-sm" : "text-[var(--text-dim)] hover:text-[var(--text-muted)]"
                               }`}
                             >
                               {mode === "apiKey" ? "API Key" : "Subscription"}
@@ -428,7 +428,7 @@ export default function SettingsModal({
                         </div>
 
                         {fb && (
-                          <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[#34c759]">
+                          <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[var(--success)]">
                             <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             {fb}
                           </div>
@@ -437,8 +437,8 @@ export default function SettingsModal({
                         {provider.authMode === "apiKey" ? (
                           <div>
                             {provider.credentialSet && !drafts[provider.id] && (
-                              <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[#505050]">
-                                <div className="h-1.5 w-1.5 rounded-full bg-[#34c759]" />
+                              <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[var(--text-dim)]">
+                                <div className="h-1.5 w-1.5 rounded-full bg-[var(--toggle-on)]" />
                                 API key configured
                               </div>
                             )}
@@ -448,12 +448,12 @@ export default function SettingsModal({
                                 value={drafts[provider.id] ?? ""}
                                 onChange={(e) => setDrafts((p) => ({ ...p, [provider.id]: e.target.value }))}
                                 placeholder={provider.credentialSet ? "Replace key..." : "sk-..."}
-                                className="min-w-0 flex-1 rounded-lg border border-[#222] bg-[#111] px-3 py-2 text-[12px] text-[#d0d0d0] outline-none placeholder:text-[#333] focus:border-[#444]"
+                                className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-input)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)] focus:border-[var(--border-active)]"
                               />
                               <button
                                 onClick={() => handleSave(provider)}
                                 disabled={!drafts[provider.id]?.trim()}
-                                className="rounded-lg bg-[#252525] px-4 py-2 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#333] disabled:opacity-30"
+                                className="rounded-lg bg-[var(--bg-active)] px-4 py-2 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-active)] disabled:opacity-30"
                               >
                                 Save
                               </button>
@@ -461,7 +461,7 @@ export default function SettingsModal({
                             {API_KEY_URLS[provider.id] && (
                               <button
                                 onClick={() => window.sncode.openExternal(API_KEY_URLS[provider.id])}
-                                className="mt-2 text-[11px] text-[#383838] underline decoration-[#2a2a2a] transition hover:text-[#808080]"
+                                className="mt-2 text-[11px] text-[var(--text-dimmest)] underline decoration-[var(--border-strong)] transition hover:text-[var(--text-muted)]"
                               >
                                 Get API key from {providerName(provider.id)}
                               </button>
@@ -470,8 +470,8 @@ export default function SettingsModal({
                         ) : (
                           <div>
                             {provider.credentialSet && (oauthStep[provider.id] ?? "idle") === "idle" && (
-                              <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[#505050]">
-                                <div className="h-1.5 w-1.5 rounded-full bg-[#34c759]" />
+                              <div className="mb-2 flex items-center gap-1.5 text-[11px] text-[var(--text-dim)]">
+                                <div className="h-1.5 w-1.5 rounded-full bg-[var(--toggle-on)]" />
                                 Subscription authorized
                               </div>
                             )}
@@ -485,16 +485,16 @@ export default function SettingsModal({
                                       try { await window.sncode.oauthAnthropicStart(); }
                                       catch { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); flash(provider.id, "Failed to start OAuth"); }
                                     }}
-                                    className="w-full rounded-lg border border-[#222] bg-[#111] py-2.5 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#1a1a1a]"
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-input)] py-2.5 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-card)]"
                                   >
                                     {provider.credentialSet ? "Re-authorize" : "Sign in with Claude"}
                                   </button>
                                 )}
                                 {oauthStep[provider.id] === "waiting_code" && (
                                   <div className="space-y-2">
-                                    <p className="text-[11px] leading-relaxed text-[#606060]">Complete sign-in in your browser, then paste the authorization code below.</p>
+                                    <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">Complete sign-in in your browser, then paste the authorization code below.</p>
                                     <div className="flex gap-2">
-                                      <input type="text" value={drafts[provider.id] ?? ""} onChange={(e) => setDrafts((p) => ({ ...p, [provider.id]: e.target.value }))} placeholder="Paste authorization code..." autoFocus className="min-w-0 flex-1 rounded-lg border border-[#222] bg-[#111] px-3 py-2 font-mono text-[12px] text-[#d0d0d0] outline-none placeholder:text-[#333] focus:border-[#444]"/>
+                                      <input type="text" value={drafts[provider.id] ?? ""} onChange={(e) => setDrafts((p) => ({ ...p, [provider.id]: e.target.value }))} placeholder="Paste authorization code..." autoFocus className="min-w-0 flex-1 rounded-lg border border-[var(--border)] bg-[var(--bg-input)] px-3 py-2 font-mono text-[12px] text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)] focus:border-[var(--border-active)]"/>
                                       <button
                                         onClick={async () => {
                                           const code = drafts[provider.id]?.trim();
@@ -512,18 +512,18 @@ export default function SettingsModal({
                                           }
                                         }}
                                         disabled={!drafts[provider.id]?.trim()}
-                                        className="rounded-lg bg-[#252525] px-4 py-2 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#333] disabled:opacity-30"
+                                        className="rounded-lg bg-[var(--bg-active)] px-4 py-2 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-active)] disabled:opacity-30"
                                       >
                                         Confirm
                                       </button>
                                     </div>
-                                    <button onClick={() => { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); setDrafts((p) => ({ ...p, [provider.id]: "" })); }} className="text-[11px] text-[#505050] transition hover:text-[#999]">Cancel</button>
+                                    <button onClick={() => { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); setDrafts((p) => ({ ...p, [provider.id]: "" })); }} className="text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">Cancel</button>
                                   </div>
                                 )}
                                 {oauthStep[provider.id] === "exchanging" && (
                                   <div className="flex items-center gap-2 py-2">
                                     <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400/80" />
-                                    <span className="text-[11px] text-[#505050]">Exchanging code for token...</span>
+                                    <span className="text-[11px] text-[var(--text-dim)]">Exchanging code for token...</span>
                                   </div>
                                 )}
                               </>
@@ -541,29 +541,29 @@ export default function SettingsModal({
                                           .catch(() => { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); setCodexDevice(null); flash(provider.id, "Authorization failed or timed out"); });
                                       } catch { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); flash(provider.id, "Failed to start device auth"); }
                                     }}
-                                    className="w-full rounded-lg border border-[#222] bg-[#111] py-2.5 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#1a1a1a]"
+                                    className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg-input)] py-2.5 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-card)]"
                                   >
                                     {provider.credentialSet ? "Re-authorize" : "Sign in with ChatGPT"}
                                   </button>
                                 )}
                                 {oauthStep[provider.id] === "waiting_device" && codexDevice && (
                                   <div className="space-y-2.5">
-                                    <p className="text-[11px] leading-relaxed text-[#606060]">Enter this code on the page that opened in your browser:</p>
-                                    <div className="flex items-center justify-center rounded-lg bg-[#111] py-3">
-                                      <span className="font-mono text-[18px] font-bold tracking-[0.3em] text-[#d0d0d0]">{codexDevice.userCode}</span>
+                                    <p className="text-[11px] leading-relaxed text-[var(--text-dim)]">Enter this code on the page that opened in your browser:</p>
+                                    <div className="flex items-center justify-center rounded-lg bg-[var(--bg-input)] py-3">
+                                      <span className="font-mono text-[18px] font-bold tracking-[0.3em] text-[var(--text-primary)]">{codexDevice.userCode}</span>
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400/80" />
-                                      <span className="text-[11px] text-[#505050]">Waiting for authorization...</span>
+                                      <span className="text-[11px] text-[var(--text-dim)]">Waiting for authorization...</span>
                                     </div>
-                                    <button onClick={() => { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); setCodexDevice(null); }} className="text-[11px] text-[#505050] transition hover:text-[#999]">Cancel</button>
+                                    <button onClick={() => { setOauthStep((p) => ({ ...p, [provider.id]: "idle" })); setCodexDevice(null); }} className="text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">Cancel</button>
                                   </div>
                                 )}
                               </>
                             )}
 
                             {(oauthStep[provider.id] ?? "idle") === "idle" && (
-                              <p className="mt-2 text-[11px] text-[#333]">
+                              <p className="mt-2 text-[11px] text-[var(--text-dimmest)]">
                                 {provider.id === "anthropic" ? "Uses your Claude Pro or Max subscription." : "Uses your ChatGPT Plus or Pro subscription."}
                               </p>
                             )}
@@ -580,13 +580,13 @@ export default function SettingsModal({
             {tab === "agent" && (
               <div className="space-y-4">
                 {feedback.settings && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#34c759]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--success)]">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     {feedback.settings}
                   </div>
                 )}
 
-                <p className="text-[11px] text-[#505050]">
+                <p className="text-[11px] text-[var(--text-dim)]">
                   Configure the primary agent&apos;s response limits and tool usage.
                 </p>
 
@@ -595,7 +595,7 @@ export default function SettingsModal({
 
                 <button
                   onClick={handleSaveSettings}
-                  className="w-full rounded-lg bg-[#222] py-2.5 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#2a2a2a]"
+                  className="w-full rounded-lg bg-[var(--bg-user-bubble)] py-2.5 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-active)]"
                 >
                   Save agent settings
                 </button>
@@ -606,26 +606,26 @@ export default function SettingsModal({
             {tab === "tasks" && (
               <div className="space-y-4">
                 {feedback.tasks && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#34c759]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--success)]">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     {feedback.tasks}
                   </div>
                 )}
 
-                <p className="text-[11px] text-[#505050]">
+                <p className="text-[11px] text-[var(--text-dim)]">
                   Configure sub-agent tasks that the main agent can spawn for parallel work.
                 </p>
 
                 {/* Sub-agent model */}
-                <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
+                <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
                   <div>
-                    <div className="text-[13px] font-medium text-[#d0d0d0]">Sub-agent model</div>
-                    <div className="mt-0.5 text-[11px] text-[#505050]">Model used for spawned tasks. Empty = same as parent.</div>
+                    <div className="text-[13px] font-medium text-[var(--text-primary)]">Sub-agent model</div>
+                    <div className="mt-0.5 text-[11px] text-[var(--text-dim)]">Model used for spawned tasks. Empty = same as parent.</div>
                   </div>
                   <select
                     value={subAgentModel}
                     onChange={(e) => setSubAgentModel(e.target.value)}
-                    className="mt-2.5 w-full rounded-lg border border-[#222] bg-[#111] px-3 py-2 text-[12px] text-[#d0d0d0] outline-none focus:border-[#444]"
+                    className="mt-2.5 w-full rounded-lg border border-[var(--border)] bg-[var(--bg-input)] px-3 py-2 text-[12px] text-[var(--text-primary)] outline-none focus:border-[var(--border-active)]"
                   >
                     <option value="">Same as parent model</option>
                     {ALL_MODELS.map((m) => (
@@ -640,7 +640,7 @@ export default function SettingsModal({
 
                 <button
                   onClick={handleSaveTaskSettings}
-                  className="w-full rounded-lg bg-[#222] py-2.5 text-[12px] font-medium text-[#d0d0d0] transition hover:bg-[#2a2a2a]"
+                  className="w-full rounded-lg bg-[var(--bg-user-bubble)] py-2.5 text-[12px] font-medium text-[var(--text-primary)] transition hover:bg-[var(--bg-active)]"
                 >
                   Save task settings
                 </button>
@@ -651,31 +651,31 @@ export default function SettingsModal({
             {tab === "skills" && (
               <div className="space-y-3">
                 {feedback.skills && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-[#34c759]">
+                  <div className="flex items-center gap-1.5 text-[11px] text-[var(--success)]">
                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6l2.5 2.5 4.5-5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     {feedback.skills}
                   </div>
                 )}
 
                 {!projectId ? (
-                  <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
-                    <p className="text-[12px] text-[#505050]">Select a project to manage skills.</p>
+                  <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+                    <p className="text-[12px] text-[var(--text-dim)]">Select a project to manage skills.</p>
                   </div>
                 ) : skillsLoading ? (
                   <div className="flex items-center gap-2 py-4">
                     <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400/80" />
-                    <span className="text-[11px] text-[#505050]">Discovering skills...</span>
+                    <span className="text-[11px] text-[var(--text-dim)]">Discovering skills...</span>
                   </div>
                 ) : (
                   <>
-                    <p className="text-[11px] text-[#505050]">
+                    <p className="text-[11px] text-[var(--text-dim)]">
                       Enable skills to inject domain-specific instructions into the agent.
                     </p>
 
                     {availableSkills.length === 0 ? (
-                      <div className="rounded-lg border border-[#1e1e1e] bg-[#161616] p-4">
-                        <p className="text-[12px] text-[#505050]">No skills found.</p>
-                        <p className="mt-1 text-[11px] text-[#383838]">
+                      <div className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4">
+                        <p className="text-[12px] text-[var(--text-dim)]">No skills found.</p>
+                        <p className="mt-1 text-[11px] text-[var(--text-dimmest)]">
                           Skills are discovered from Claude Code directories, project-local .sncode/skills/, and SnCode&apos;s own skills directory.
                         </p>
                       </div>
@@ -685,26 +685,26 @@ export default function SettingsModal({
                           const enabled = projectSkillConfig.enabledSkillIds.includes(skill.id);
                           const isSncode = skill.source === "sncode";
                           return (
-                            <div key={skill.id} className="group rounded-lg border border-[#1e1e1e] bg-[#161616] px-4 py-3">
+                            <div key={skill.id} className="group rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-4 py-3">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[13px] font-medium text-[#d0d0d0]">{skill.name}</span>
+                                    <span className="text-[13px] font-medium text-[var(--text-primary)]">{skill.name}</span>
                                     <span className={`rounded border px-1 py-px text-[9px] ${sourceBadgeColor(skill.source)}`}>
                                       {sourceLabel(skill.source)}
                                     </span>
                                   </div>
-                                  <p className="mt-0.5 text-[11px] leading-relaxed text-[#505050]">{skill.description}</p>
+                                  <p className="mt-0.5 text-[11px] leading-relaxed text-[var(--text-dim)]">{skill.description}</p>
                                 </div>
                                 <div className="flex shrink-0 items-center gap-2">
                                   {isSncode && (
-                                    <button onClick={() => handleDeleteSkill(skill.id)} className="hidden rounded-md p-1 text-[#505050] transition hover:bg-[#222] hover:text-red-400 group-hover:block" title="Delete skill">
+                                    <button onClick={() => handleDeleteSkill(skill.id)} className="hidden rounded-md p-1 text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-red-400 group-hover:block" title="Delete skill">
                                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1.5 14a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2L5 6"/></svg>
                                     </button>
                                   )}
                                   <button
                                     onClick={() => toggleSkill(skill.id, !enabled)}
-                                    className={`relative h-[22px] w-[40px] rounded-full transition-colors ${enabled ? "bg-[#34c759]" : "bg-[#2a2a2a]"}`}
+                                    className={`relative h-[22px] w-[40px] rounded-full transition-colors ${enabled ? "bg-[var(--toggle-on)]" : "bg-[var(--bg-active)]"}`}
                                   >
                                     <div className={`absolute top-[3px] h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${enabled ? "translate-x-[20px]" : "translate-x-[3px]"}`}/>
                                   </button>
@@ -718,7 +718,7 @@ export default function SettingsModal({
 
                     <button
                       onClick={handleInstallSkill}
-                      className="w-full rounded-lg border border-dashed border-[#2a2a2a] bg-[#111] py-2.5 text-[12px] text-[#505050] transition hover:border-[#444] hover:text-[#999]"
+                      className="w-full rounded-lg border border-dashed border-[var(--border-strong)] bg-[var(--bg-input)] py-2.5 text-[12px] text-[var(--text-dim)] transition hover:border-[var(--border-active)] hover:text-[var(--text-muted)]"
                     >
                       + Install skill from folder
                     </button>
@@ -730,12 +730,12 @@ export default function SettingsModal({
             {/* ══════════ Data ══════════ */}
             {tab === "data" && (
               <div className="space-y-5">
-                <p className="text-[11px] text-[#505050]">
+                <p className="text-[11px] text-[var(--text-dim)]">
                   Manage your application data. These actions cannot be undone.
                 </p>
 
                 {/* Clear all data */}
-                <div className="rounded-lg border border-red-500/10 bg-[#161616] p-5">
+                <div className="rounded-lg border border-red-500/10 bg-[var(--bg-surface)] p-5">
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-red-500/5 text-red-400/60">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -743,8 +743,8 @@ export default function SettingsModal({
                       </svg>
                     </div>
                     <div className="flex-1">
-                      <div className="text-[13px] font-medium text-[#d0d0d0]">Clear all data</div>
-                      <div className="mt-1 text-[11px] leading-relaxed text-[#505050]">
+                      <div className="text-[13px] font-medium text-[var(--text-primary)]">Clear all data</div>
+                      <div className="mt-1 text-[11px] leading-relaxed text-[var(--text-dim)]">
                         This will permanently delete all projects, threads, messages, API keys from your keychain, and reset all settings to defaults. You will be returned to the onboarding screen.
                       </div>
                     </div>
@@ -768,7 +768,7 @@ export default function SettingsModal({
                       <div className="flex gap-2">
                         <button
                           onClick={() => setConfirmReset(false)}
-                          className="flex-1 rounded-lg border border-[#252525] bg-[#1a1a1a] py-2 text-[12px] text-[#808080] transition hover:bg-[#222]"
+                          className="flex-1 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-card)] py-2 text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-user-bubble)]"
                         >
                           Cancel
                         </button>
