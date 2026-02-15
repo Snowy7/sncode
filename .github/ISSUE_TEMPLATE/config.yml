@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Discussions
+    url: https://github.com/Snowy7/sncode/discussions
+    about: Ask questions or start a conversation
