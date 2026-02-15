@@ -1158,11 +1158,9 @@ type OnboardingAuthMode = "apikey" | "subscription";
 
 function OnboardingModal({
   onSaveCredential,
-  onUpdateProvider,
   onComplete,
 }: {
   onSaveCredential: (providerId: string, credential: string) => Promise<void>;
-  onUpdateProvider: (provider: ProviderConfig, updates: Partial<ProviderConfig>) => Promise<void>;
   onComplete: () => void;
 }) {
   const [step, setStep] = useState<OnboardingStep>("welcome");
@@ -1941,7 +1939,6 @@ export default function App() {
     return (
       <OnboardingModal
         onSaveCredential={saveCredential}
-        onUpdateProvider={updateProvider}
         onComplete={async () => {
           await updateSettings({ onboardingComplete: true });
           void refresh();
