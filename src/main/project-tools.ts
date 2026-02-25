@@ -169,6 +169,7 @@ export async function runCommand(
 ): Promise<{ stdout: string; stderr: string; code: number | null }> {
   const { timeoutMs = 90_000, abortSignal } = options;
   const safeCmd = safeCommand(command);
+  const LARGE_WINDOWS_COMMAND_THRESHOLD = 7_000;
 
   return new Promise<{ stdout: string; stderr: string; code: number | null }>((resolve, reject) => {
     // Check if already aborted before spawning
@@ -177,12 +178,24 @@ export async function runCommand(
       return;
     }
 
-    const child = spawn(safeCmd, {
-      cwd: projectRoot,
-      shell: shellInfo.shell,
-      windowsHide: true,
-      env: process.env
-    });
+    let tempScriptPath: string | null = null;
+    let child: ReturnType<typeof spawn>;
+    if (process.platform === "win32" && safeCmd.length > LARGE_WINDOWS_COMMAND_THRESHOLD) {
+      tempScriptPath = path.join(os.tmpdir(), `sncode-run-${Date.now()}-${Math.random().toString(36).slice(2)}.cmd`);
+      fs.writeFileSync(tempScriptPath, `@echo off\r\n${safeCmd}\r\n`, "utf8");
+      child = spawn("cmd.exe", ["/d", "/s", "/c", tempScriptPath], {
+        cwd: projectRoot,
+        windowsHide: true,
+        env: process.env,
+      });
+    } else {
+      child = spawn(safeCmd, {
+        cwd: projectRoot,
+        shell: shellInfo.shell,
+        windowsHide: true,
+        env: process.env,
+      });
+    }
 
     let stdout = "";
     let stderr = "";
@@ -193,6 +206,9 @@ export async function runCommand(
       settled = true;
       clearTimeout(timeout);
       abortSignal?.removeEventListener("abort", onAbort);
+      if (tempScriptPath) {
+        try { fs.unlinkSync(tempScriptPath); } catch { /* ignore cleanup errors */ }
+      }
       if (error) reject(error);
       else resolve(result!);
     }
@@ -211,6 +227,11 @@ export async function runCommand(
       settle(null, new Error("Run cancelled"));
     }
     abortSignal?.addEventListener("abort", onAbort, { once: true });
+
+    if (!child.stdout || !child.stderr) {
+      settle(null, new Error("Failed to attach process streams"));
+      return;
+    }
 
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk);
