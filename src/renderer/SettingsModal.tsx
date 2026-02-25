@@ -149,6 +149,7 @@ export default function SettingsModal({
   // Local settings drafts
   const [maxTokens, setMaxTokens] = useState(settings.maxTokens);
   const [maxToolSteps, setMaxToolSteps] = useState(settings.maxToolSteps);
+  const [maxMessagesPerThread, setMaxMessagesPerThread] = useState(settings.maxMessagesPerThread);
   const [subAgentModel, setSubAgentModel] = useState(settings.subAgentModel);
   const [subAgentMaxTokens, setSubAgentMaxTokens] = useState(settings.subAgentMaxTokens);
   const [subAgentMaxToolSteps, setSubAgentMaxToolSteps] = useState(settings.subAgentMaxToolSteps);
@@ -220,7 +221,7 @@ export default function SettingsModal({
   }
 
   async function handleSaveSettings() {
-    await onUpdateSettings({ maxTokens, maxToolSteps, subAgentModel, subAgentMaxTokens, subAgentMaxToolSteps, maxConcurrentTasks, theme: themeMode });
+    await onUpdateSettings({ maxTokens, maxToolSteps, maxMessagesPerThread, subAgentModel, subAgentMaxTokens, subAgentMaxToolSteps, maxConcurrentTasks, theme: themeMode });
     flash("settings", "Settings saved");
   }
 
@@ -592,6 +593,7 @@ export default function SettingsModal({
 
                 <SettingSlider label="Max tokens" description="Maximum response length per model call" value={maxTokens} min={256} max={128000} step={256} onChange={setMaxTokens} />
                 <SettingSlider label="Max tool steps" description="Maximum tool call iterations per agent run" value={maxToolSteps} min={1} max={100} step={1} onChange={setMaxToolSteps} />
+                <SettingSlider label="Max messages per thread" description="Hard cap for persisted thread history (oldest messages are pruned)" value={maxMessagesPerThread} min={50} max={5000} step={10} onChange={setMaxMessagesPerThread} />
 
                 <button
                   onClick={handleSaveSettings}

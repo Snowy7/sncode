@@ -46,6 +46,7 @@ export const providerCredentialInputSchema = z.object({
 export const agentSettingsSchema = z.object({
   maxTokens: z.number().int().min(256).max(128000).optional(),
   maxToolSteps: z.number().int().min(1).max(100).optional(),
+  maxMessagesPerThread: z.number().int().min(50).max(5000).optional(),
   subAgentModel: z.string().max(120).optional(),
   subAgentMaxTokens: z.number().int().min(256).max(128000).optional(),
   subAgentMaxToolSteps: z.number().int().min(1).max(50).optional(),

@@ -3,6 +3,8 @@ import { AgentEventMap, AgentSettings, FileTreeEntry, GitDiffEntry, NewProjectIn
 
 const api: SncodeApi = {
   getState: () => ipcRenderer.invoke("state:get"),
+  getThreadMessages: (threadId: string) => ipcRenderer.invoke("thread:messages", threadId),
+  getThreadMessageMeta: () => ipcRenderer.invoke("thread:meta"),
   pickFolder: () => ipcRenderer.invoke("folder:pick"),
   createProject: (payload: NewProjectInput) => ipcRenderer.invoke("project:create", payload),
   createThread: (payload: NewThreadInput) => ipcRenderer.invoke("thread:create", payload),

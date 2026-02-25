@@ -31,6 +31,22 @@ export interface McpTool {
   serverId: string;
 }
 
+export interface McpResource {
+  uri: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+  serverId: string;
+}
+
+export interface McpResourceTemplate {
+  uriTemplate: string;
+  name?: string;
+  description?: string;
+  mimeType?: string;
+  serverId: string;
+}
+
 interface JsonRpcRequest {
   jsonrpc: "2.0";
   id: string | number;
@@ -167,6 +183,34 @@ export class McpClient {
       .join("\n") || "Done";
   }
 
+  async listResources(cursor?: string): Promise<{ resources: Omit<McpResource, "serverId">[]; nextCursor?: string }> {
+    const params: Record<string, unknown> = {};
+    if (cursor) params.cursor = cursor;
+    const response = await this.sendRequest("resources/list", params) as {
+      resources?: Array<{ uri: string; name?: string; description?: string; mimeType?: string }>;
+      nextCursor?: string;
+    };
+    return { resources: response.resources || [], nextCursor: response.nextCursor };
+  }
+
+  async listResourceTemplates(cursor?: string): Promise<{ templates: Omit<McpResourceTemplate, "serverId">[]; nextCursor?: string }> {
+    const params: Record<string, unknown> = {};
+    if (cursor) params.cursor = cursor;
+    const response = await this.sendRequest("resources/templates/list", params) as {
+      resourceTemplates?: Array<{ uriTemplate: string; name?: string; description?: string; mimeType?: string }>;
+      templates?: Array<{ uriTemplate: string; name?: string; description?: string; mimeType?: string }>;
+      nextCursor?: string;
+    };
+    return {
+      templates: response.resourceTemplates || response.templates || [],
+      nextCursor: response.nextCursor,
+    };
+  }
+
+  async readResource(uri: string): Promise<unknown> {
+    return this.sendRequest("resources/read", { uri });
+  }
+
   private sendNotification(method: string, params: Record<string, unknown>): void {
     if (!this.process?.stdin?.writable) return;
     const message = JSON.stringify({ jsonrpc: "2.0", method, params }) + "\n";
@@ -287,6 +331,52 @@ export class McpManager {
       throw new Error(`MCP server ${serverId} not connected`);
     }
     return client.callTool(name, args);
+  }
+
+  async listResources(serverId?: string, cursor?: string): Promise<{ resources: McpResource[]; nextCursor?: string }> {
+    if (serverId) {
+      const client = this.clients.get(serverId);
+      if (!client || !client.connected) throw new Error(`MCP server ${serverId} not connected`);
+      const response = await client.listResources(cursor);
+      return {
+        resources: response.resources.map((r) => ({ ...r, serverId })),
+        nextCursor: response.nextCursor,
+      };
+    }
+
+    const resources: McpResource[] = [];
+    for (const [id, client] of this.clients.entries()) {
+      if (!client.connected) continue;
+      const response = await client.listResources(undefined);
+      resources.push(...response.resources.map((r) => ({ ...r, serverId: id })));
+    }
+    return { resources };
+  }
+
+  async listResourceTemplates(serverId?: string, cursor?: string): Promise<{ templates: McpResourceTemplate[]; nextCursor?: string }> {
+    if (serverId) {
+      const client = this.clients.get(serverId);
+      if (!client || !client.connected) throw new Error(`MCP server ${serverId} not connected`);
+      const response = await client.listResourceTemplates(cursor);
+      return {
+        templates: response.templates.map((t) => ({ ...t, serverId })),
+        nextCursor: response.nextCursor,
+      };
+    }
+
+    const templates: McpResourceTemplate[] = [];
+    for (const [id, client] of this.clients.entries()) {
+      if (!client.connected) continue;
+      const response = await client.listResourceTemplates(undefined);
+      templates.push(...response.templates.map((t) => ({ ...t, serverId: id })));
+    }
+    return { templates };
+  }
+
+  async readResource(serverId: string, uri: string): Promise<unknown> {
+    const client = this.clients.get(serverId);
+    if (!client || !client.connected) throw new Error(`MCP server ${serverId} not connected`);
+    return client.readResource(uri);
   }
 
   /** Check if any server is connected */

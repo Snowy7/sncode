@@ -14,6 +14,7 @@ import { exchangeAnthropicCode, pollCodexDeviceAuth, startAnthropicOAuth, startC
 import { discoverSkills, loadSkillContent, installSkill, deleteSkill } from "./skills";
 import { Store } from "./store";
 import { runCodexAppServerTurn } from "./codex-app-server";
+import { mcpManager } from "./mcp";
 import {
   agentSettingsSchema,
   newProjectInputSchema,
@@ -23,7 +24,7 @@ import {
   providerUpdateInputSchema,
   sendMessageInputSchema
 } from "../shared/schema";
-import { AgentEventMap, ProviderConfig, SubAgentTrailEntry } from "../shared/types";
+import { AgentEventMap, AppState, ProviderConfig, SubAgentTrailEntry } from "../shared/types";
 import { smallestAvailableModelId, providerForModelId } from "../shared/models";
 
 const isDev = !app.isPackaged;
@@ -34,6 +35,10 @@ let mainWindow: BrowserWindow | null = null;
 
 function emit<T extends keyof AgentEventMap>(channel: T, payload: AgentEventMap[T]) {
   mainWindow?.webContents.send(channel, payload);
+}
+
+function toRendererState(state: AppState): AppState {
+  return { ...state, messages: [] };
 }
 
 function createWindow() {
@@ -239,11 +244,9 @@ interface ThreadRunUiBridge {
 
 function createThreadRunUiBridge(threadId: string): ThreadRunUiBridge {
   function storeAndEmit(role: "assistant" | "tool", content: string, metadata?: Record<string, unknown>) {
-    store.appendMessage(threadId, role, content, metadata);
-    const msgs = store.getMessages(threadId);
-    const last = msgs[msgs.length - 1];
-    emit("agent:message", { threadId, message: last });
-    return last.id;
+    const msg = store.appendMessage(threadId, role, content, metadata);
+    emit("agent:message", { threadId, message: msg });
+    return msg.id;
   }
 
   return {
@@ -268,8 +271,7 @@ function createThreadRunUiBridge(threadId: string): ThreadRunUiBridge {
       storeAndEmit("assistant", text, metadata);
     },
     onTaskProgress: (pendingId, trailEntry) => {
-      const msgs = store.getMessages(threadId);
-      const msg = msgs.find((m) => m.id === pendingId);
+      const msg = store.getMessageById(pendingId);
       if (!msg) return;
       const existingTrail: SubAgentTrailEntry[] = msg.metadata?.taskTrail ?? [];
       const newTrail: SubAgentTrailEntry[] = [...existingTrail, trailEntry];
@@ -355,6 +357,7 @@ async function runUnifiedProviderTurn(input: UnifiedProviderRunInput): Promise<U
     getCredential: getProviderCredential,
     enabledSkills: enabledSkillContents,
     availableSkills: availableSkills.map((s) => ({ id: s.id, name: s.name, description: s.description })),
+    mcpTools: mcpManager.getAllTools(),
     callbacks: {
       onChunk: input.ui.onChunk,
       onToolStart: input.ui.onToolStart,
@@ -388,7 +391,7 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
     });
   }
 
-  const immediateState = store.getState();
+  const immediateState = toRendererState(store.getState());
   const controller = new AbortController();
   runControllers.set(parsed.threadId, controller);
   const ui = createThreadRunUiBridge(parsed.threadId);
@@ -440,7 +443,13 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
 }
 
 function registerIpc() {
-  ipcMain.handle("state:get", () => store.getState());
+  ipcMain.handle("state:get", () => toRendererState(store.getState()));
+  ipcMain.handle("thread:messages", (_event, threadId: unknown) => {
+    const id = String(threadId || "");
+    if (!id) return [];
+    return store.getMessages(id);
+  });
+  ipcMain.handle("thread:meta", () => store.getThreadMessageMeta());
 
   ipcMain.handle("folder:pick", async () => {
     const win = BrowserWindow.getFocusedWindow() ?? mainWindow;
@@ -480,7 +489,7 @@ function registerIpc() {
       runControllers.delete(id);
     }
     store.deleteThread(id);
-    return store.getState();
+    return toRendererState(store.getState());
   });
 
   ipcMain.handle("provider:update", (_event, payload: unknown) => {
@@ -528,7 +537,7 @@ function registerIpc() {
       controller.abort();
       runControllers.delete(id);
     }
-    return store.resetAll();
+    return toRendererState(store.resetAll());
   });
 
   ipcMain.handle("app:open-devtools", () => {
@@ -819,9 +828,14 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", () => {
+  store.flushPersist();
   if (process.platform !== "darwin") {
     app.quit();
   }
+});
+
+app.on("before-quit", () => {
+  store.flushPersist();
 });
 
 app.on("activate", () => {

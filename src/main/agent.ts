@@ -4,10 +4,12 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import { AgentSettings, ProviderConfig, SubAgentType, ThreadMessage } from "../shared/types";
+import { modelEntryById } from "../shared/models";
 import { isOAuthCredential, parseOAuthCredential, OAuthData, refreshAnthropicToken, refreshCodexToken } from "./oauth";
 import { EnvironmentInfo, listFiles, readTextFile, runCommand, writeTextFile, editFile, globFiles, grepFiles, RunCommandOptions, getEnvironmentInfo } from "./project-tools";
+import { applyPatch } from "./apply-patch";
 import { loadSkillContent } from "./skills";
-import { McpTool } from "./mcp";
+import { McpTool, mcpManager } from "./mcp";
 
 /* ── Types ── */
 
@@ -46,6 +48,10 @@ export interface RunAgentInput {
 
 const DEFAULT_MAX_TOKENS = 16384;
 const DEFAULT_MAX_TOOL_STEPS = 25;
+const FALLBACK_CONTEXT_WINDOW = 32768;
+const AUTO_COMPACT_THRESHOLD_RATIO = 0.92;
+const COMPACT_TARGET_RATIO = 0.67;
+const MIN_HISTORY_BUDGET = 256;
 
 /* ── Project memory ── */
 
@@ -80,9 +86,9 @@ function estimateTokens(text: string): number {
 }
 
 function estimateMessageTokens(msg: ThreadMessage): number {
-  let tokens = estimateTokens(msg.content);
+  let tokens = estimateTokens(msg.content) + 8;
   if (msg.images) {
-    // Each image is roughly 1000-2000 tokens depending on size
+    // Rough vision input estimate per image.
     tokens += msg.images.length * 1500;
   }
   return tokens;
@@ -91,52 +97,141 @@ function estimateMessageTokens(msg: ThreadMessage): number {
 /* ── Context compaction ── */
 
 /**
- * Compact conversation history when it exceeds the token budget.
- * Strategy:
- * 1. Keep the first user message (provides original context)
- * 2. Summarize middle messages into a compact recap
- * 3. Keep the last N messages verbatim for recent context
- *
- * Returns the original history if within budget.
+ * Codex-style context budgeting:
+ * estimated usage = system prompt tokens + history tokens + reserved output tokens.
+ * If usage crosses threshold, compact history and keep required anchor messages.
  */
-function compactHistory(
-  history: ThreadMessage[],
-  contextBudget: number
-): ThreadMessage[] {
-  // Only consider user + assistant messages for compaction
-  const chatMessages = history.filter((m) => m.role === "user" || m.role === "assistant");
-  if (chatMessages.length <= 4) return history; // too short to compact
+function getContextWindow(provider: ProviderConfig): number {
+  const modelWindow = modelEntryById(provider.model)?.contextWindow;
+  if (typeof modelWindow === "number" && modelWindow > 0) return modelWindow;
+  if (provider.id === "anthropic") return 200_000;
+  if (provider.id === "codex") return 400_000;
+  return FALLBACK_CONTEXT_WINDOW;
+}
 
-  let totalEstimate = 0;
-  for (const m of chatMessages) totalEstimate += estimateMessageTokens(m);
-  if (totalEstimate < contextBudget) return history; // within budget
+function toChatHistory(history: ThreadMessage[]): ThreadMessage[] {
+  return history.filter((m) => m.role === "user" || m.role === "assistant");
+}
 
-  // Keep first 2 messages + last 6 messages, summarize the rest
-  const KEEP_FIRST = 2;
-  const KEEP_LAST = 6;
-  if (chatMessages.length <= KEEP_FIRST + KEEP_LAST) return history;
+function estimateHistoryTokens(history: ThreadMessage[]): number {
+  let total = 0;
+  for (const msg of history) total += estimateMessageTokens(msg);
+  return total;
+}
 
-  const firstMsgs = chatMessages.slice(0, KEEP_FIRST);
-  const middleMsgs = chatMessages.slice(KEEP_FIRST, chatMessages.length - KEEP_LAST);
-  const lastMsgs = chatMessages.slice(chatMessages.length - KEEP_LAST);
+function findLastIndexByRole(history: ThreadMessage[], role: "user" | "assistant"): number {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    if (history[i].role === role) return i;
+  }
+  return -1;
+}
 
-  // Build a compact summary of middle messages
-  const summaryParts: string[] = [];
-  for (const m of middleMsgs) {
-    const role = m.role === "user" ? "User" : "Assistant";
-    const snippet = m.content.length > 200 ? m.content.slice(0, 200) + "..." : m.content;
-    summaryParts.push(`[${role}]: ${snippet}`);
+function buildRequiredIndexes(history: ThreadMessage[]): Set<number> {
+  const required = new Set<number>();
+  if (history.length === 0) return required;
+
+  const lastIdx = history.length - 1;
+  required.add(lastIdx);
+
+  const firstUserIdx = history.findIndex((m) => m.role === "user");
+  if (firstUserIdx >= 0) required.add(firstUserIdx);
+
+  const latestUserIdx = findLastIndexByRole(history, "user");
+  if (latestUserIdx >= 0) {
+    required.add(latestUserIdx);
+    if (latestUserIdx > 0 && history[latestUserIdx - 1].role === "assistant") {
+      required.add(latestUserIdx - 1);
+    }
   }
 
-  const summaryMsg: ThreadMessage = {
-    id: "compacted-summary",
-    threadId: chatMessages[0].threadId,
-    role: "assistant",
-    content: `[Context compacted — ${middleMsgs.length} earlier messages summarized]\n\n${summaryParts.join("\n\n")}`,
-    createdAt: new Date().toISOString(),
+  const latestAssistantIdx = findLastIndexByRole(history, "assistant");
+  if (latestAssistantIdx >= 0) required.add(latestAssistantIdx);
+
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const msg = history[i];
+    if (msg.role !== "assistant") continue;
+    if (!msg.content.startsWith("[Context compacted")) continue;
+    required.add(i);
+    break;
+  }
+
+  return required;
+}
+
+function compactHistoryToBudget(history: ThreadMessage[], historyBudget: number): ThreadMessage[] {
+  if (history.length <= 2) return history;
+  const budget = Math.max(MIN_HISTORY_BUDGET, historyBudget);
+
+  const tokenByIndex = history.map((msg) => estimateMessageTokens(msg));
+  const required = buildRequiredIndexes(history);
+  const selected = new Set<number>();
+  let used = 0;
+
+  const trySelect = (idx: number): boolean => {
+    if (idx < 0 || idx >= history.length) return false;
+    if (selected.has(idx)) return true;
+    const cost = tokenByIndex[idx];
+    if (used + cost > budget) return false;
+    selected.add(idx);
+    used += cost;
+    return true;
   };
 
-  return [...firstMsgs, summaryMsg, ...lastMsgs];
+  // Prioritize required messages newest-first.
+  const requiredNewestFirst = [...required].sort((a, b) => b - a);
+  for (const idx of requiredNewestFirst) {
+    void trySelect(idx);
+  }
+
+  // Backfill with newest optional messages until budget is reached.
+  for (let idx = history.length - 1; idx >= 0; idx -= 1) {
+    if (required.has(idx)) continue;
+    if (!trySelect(idx)) continue;
+  }
+
+  if (selected.size === 0) {
+    // Always keep at least the latest message, even if it exceeds budget.
+    selected.add(history.length - 1);
+  }
+
+  const sorted = [...selected].sort((a, b) => a - b);
+  return sorted.map((idx) => history[idx]);
+}
+
+function prepareHistoryForRequest(
+  provider: ProviderConfig,
+  history: ThreadMessage[],
+  systemPrompt: string,
+  maxOutputTokens: number
+): ThreadMessage[] {
+  const chatHistory = toChatHistory(history);
+  if (chatHistory.length <= 2) return chatHistory;
+
+  const contextWindow = getContextWindow(provider);
+  const systemTokens = estimateTokens(systemPrompt);
+  const triggerLimit = Math.floor(contextWindow * AUTO_COMPACT_THRESHOLD_RATIO);
+  const targetUsage = Math.floor(contextWindow * COMPACT_TARGET_RATIO);
+
+  const historyTokens = estimateHistoryTokens(chatHistory);
+  const estimatedUsage = systemTokens + historyTokens + maxOutputTokens;
+  if (estimatedUsage <= triggerLimit) return chatHistory;
+
+  let historyBudget = targetUsage - systemTokens - maxOutputTokens;
+  if (historyBudget < MIN_HISTORY_BUDGET) {
+    historyBudget = contextWindow - systemTokens - maxOutputTokens;
+  }
+  if (historyBudget < MIN_HISTORY_BUDGET) {
+    historyBudget = MIN_HISTORY_BUDGET;
+  }
+
+  let compacted = compactHistoryToBudget(chatHistory, historyBudget);
+  const compactedUsage = systemTokens + estimateHistoryTokens(compacted) + maxOutputTokens;
+  if (compactedUsage > contextWindow) {
+    const hardBudget = Math.max(MIN_HISTORY_BUDGET, contextWindow - systemTokens - maxOutputTokens);
+    compacted = compactHistoryToBudget(compacted, hardBudget);
+  }
+
+  return compacted;
 }
 
 /* ── Timeout helper ── */
@@ -195,6 +290,7 @@ You have access to tools to inspect and edit code in the user's project. Use too
 - If the user provides an image, analyze its contents to help with their request.
 
 # File editing
+- For multi-file or multi-hunk edits, prefer apply_patch. Keep patches focused and reviewable.
 - ALWAYS prefer edit_file over write_file for existing files. edit_file makes precise string replacements without rewriting the entire file.
 - ALWAYS read_file first before using edit_file, so you have the exact text to match.
 - When using edit_file, provide enough surrounding context in old_string to uniquely identify the target location.
@@ -261,9 +357,20 @@ This project has no saved memory yet. Use the \`memory_write\` tool to save impo
   return prompt;
 }
 
+function mcpToolName(tool: McpTool): string {
+  return `mcp__${tool.serverId}__${tool.name}`;
+}
+
+function parseMcpToolName(name: string): { serverId: string; toolName: string } | null {
+  if (!name.startsWith("mcp__")) return null;
+  const parts = name.split("__");
+  if (parts.length < 3) return null;
+  return { serverId: parts[1], toolName: parts.slice(2).join("__") };
+}
+
 /* ── Anthropic native tool definitions ── */
 
-function buildAnthropicTools(env: EnvironmentInfo, availableSkills?: SkillSummary[]): Anthropic.Tool[] {
+function buildAnthropicTools(env: EnvironmentInfo, availableSkills?: SkillSummary[], mcpTools?: McpTool[]): Anthropic.Tool[] {
   const tools: Anthropic.Tool[] = [
     {
       name: "list_files",
@@ -349,7 +456,92 @@ function buildAnthropicTools(env: EnvironmentInfo, availableSkills?: SkillSummar
         required: ["command"],
       },
     },
+    {
+      name: "apply_patch",
+      description: "Apply a multi-file patch using the Codex apply_patch format. Supports Add/Update/Delete and Move-to in a single atomic patch.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          patch: { type: "string", description: "Patch text that starts with '*** Begin Patch' and ends with '*** End Patch'." },
+        },
+        required: ["patch"],
+      },
+    },
   ];
+
+  // Codex CLI naming compatibility.
+  tools.push(
+    {
+      name: "shell_command",
+      description: `Alias of run_command. Run a ${env.shellName} command in the project root directory.`,
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          command: { type: "string", description: `${env.shellName} command to execute` },
+        },
+        required: ["command"],
+      },
+    },
+    {
+      name: "update_plan",
+      description: "Update the task plan (Codex-compatible helper).",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          explanation: { type: "string", description: "Optional short explanation." },
+          plan: {
+            type: "array",
+            description: "Ordered steps with status fields.",
+            items: {
+              type: "object",
+              properties: {
+                step: { type: "string" },
+                status: { type: "string", enum: ["pending", "in_progress", "completed"] },
+              },
+              required: ["step", "status"],
+            },
+          },
+        },
+        required: ["plan"],
+      },
+    },
+    {
+      name: "list_mcp_resources",
+      description: "List resources exposed by connected MCP servers. Optional server and cursor filters.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          server: { type: "string", description: "Optional MCP server ID to scope results." },
+          cursor: { type: "string", description: "Optional pagination cursor." },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "list_mcp_resource_templates",
+      description: "List parameterized MCP resource templates. Optional server and cursor filters.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          server: { type: "string", description: "Optional MCP server ID to scope results." },
+          cursor: { type: "string", description: "Optional pagination cursor." },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "read_mcp_resource",
+      description: "Read one MCP resource by server ID and resource URI.",
+      input_schema: {
+        type: "object" as const,
+        properties: {
+          server: { type: "string", description: "MCP server ID." },
+          uri: { type: "string", description: "Resource URI returned by list_mcp_resources." },
+        },
+        required: ["server", "uri"],
+      },
+    }
+  );
 
   // Memory tools
   tools.push(
@@ -386,6 +578,17 @@ function buildAnthropicTools(env: EnvironmentInfo, availableSkills?: SkillSummar
     });
   }
 
+  // Add connected MCP tools.
+  if (mcpTools && mcpTools.length > 0) {
+    for (const tool of mcpTools) {
+      tools.push({
+        name: mcpToolName(tool),
+        description: `[MCP:${tool.serverId}] ${tool.description || tool.name}`,
+        input_schema: (tool.inputSchema || { type: "object", properties: {} }) as Anthropic.Tool.InputSchema,
+      });
+    }
+  }
+
   // spawn_task — sub-agent delegation
   tools.push({
     name: "spawn_task",
@@ -409,7 +612,7 @@ The sub-agent receives your prompt and returns a final summary. Use clear, detai
 
 /* ── OpenAI native tool definitions ── */
 
-function buildOpenAITools(env: EnvironmentInfo, availableSkills?: SkillSummary[]): OpenAI.Chat.Completions.ChatCompletionTool[] {
+function buildOpenAITools(env: EnvironmentInfo, availableSkills?: SkillSummary[], mcpTools?: McpTool[]): OpenAI.Chat.Completions.ChatCompletionTool[] {
   const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     {
       type: "function",
@@ -491,7 +694,103 @@ function buildOpenAITools(env: EnvironmentInfo, availableSkills?: SkillSummary[]
         parameters: { type: "object", properties: { command: { type: "string", description: `${env.shellName} command to execute` } }, required: ["command"] },
       },
     },
+    {
+      type: "function",
+      function: {
+        name: "apply_patch",
+        description: "Apply a multi-file patch using the Codex apply_patch format. Supports Add/Update/Delete and Move-to in a single atomic patch.",
+        parameters: {
+          type: "object",
+          properties: {
+            patch: { type: "string", description: "Patch text that starts with '*** Begin Patch' and ends with '*** End Patch'." },
+          },
+          required: ["patch"],
+        },
+      },
+    },
   ];
+
+  // Codex CLI naming compatibility.
+  tools.push(
+    {
+      type: "function",
+      function: {
+        name: "shell_command",
+        description: `Alias of run_command. Run a ${env.shellName} command in the project root on ${platformLabel(env.platform)}.`,
+        parameters: { type: "object", properties: { command: { type: "string", description: `${env.shellName} command to execute` } }, required: ["command"] },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "update_plan",
+        description: "Update the task plan (Codex-compatible helper).",
+        parameters: {
+          type: "object",
+          properties: {
+            explanation: { type: "string", description: "Optional short explanation." },
+            plan: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  step: { type: "string" },
+                  status: { type: "string", enum: ["pending", "in_progress", "completed"] },
+                },
+                required: ["step", "status"],
+              },
+            },
+          },
+          required: ["plan"],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_mcp_resources",
+        description: "List resources exposed by connected MCP servers. Optional server and cursor filters.",
+        parameters: {
+          type: "object",
+          properties: {
+            server: { type: "string", description: "Optional MCP server ID to scope results." },
+            cursor: { type: "string", description: "Optional pagination cursor." },
+          },
+          required: [],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "list_mcp_resource_templates",
+        description: "List parameterized MCP resource templates. Optional server and cursor filters.",
+        parameters: {
+          type: "object",
+          properties: {
+            server: { type: "string", description: "Optional MCP server ID to scope results." },
+            cursor: { type: "string", description: "Optional pagination cursor." },
+          },
+          required: [],
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "read_mcp_resource",
+        description: "Read one MCP resource by server ID and resource URI.",
+        parameters: {
+          type: "object",
+          properties: {
+            server: { type: "string", description: "MCP server ID." },
+            uri: { type: "string", description: "Resource URI returned by list_mcp_resources." },
+          },
+          required: ["server", "uri"],
+        },
+      },
+    }
+  );
 
   // Memory tools
   tools.push(
@@ -535,6 +834,20 @@ function buildOpenAITools(env: EnvironmentInfo, availableSkills?: SkillSummary[]
         },
       },
     });
+  }
+
+  // Add connected MCP tools.
+  if (mcpTools && mcpTools.length > 0) {
+    for (const tool of mcpTools) {
+      tools.push({
+        type: "function",
+        function: {
+          name: mcpToolName(tool),
+          description: `[MCP:${tool.serverId}] ${tool.description || tool.name}`,
+          parameters: tool.inputSchema || { type: "object", properties: {} },
+        },
+      });
+    }
   }
 
   // spawn_task — sub-agent delegation
@@ -794,6 +1107,11 @@ async function executeTool(
       const result = editFile(projectRoot, pathArg, oldStr, newStr, replaceAllArg);
       return result.message;
     }
+    if (name === "apply_patch") {
+      const patch = String(args.patch || "");
+      const result = applyPatch(projectRoot, patch);
+      return result.message;
+    }
     if (name === "glob") {
       const patternArg = String(args.pattern || "");
       const pathArg = String(args.path || ".");
@@ -813,10 +1131,46 @@ async function executeTool(
       else lines.push(`\n${result.matches.length} matches in ${result.fileCount} files`);
       return lines.join("\n");
     }
-    if (name === "run_command") {
+    if (name === "run_command" || name === "shell_command") {
       const commandArg = String(args.command || "");
       const opts: RunCommandOptions = { abortSignal };
       const result = await runCommand(projectRoot, commandArg, opts);
+      return JSON.stringify(result, null, 2);
+    }
+    if (name === "update_plan") {
+      const explanation = typeof args.explanation === "string" ? args.explanation.trim() : "";
+      const plan = Array.isArray(args.plan) ? args.plan : [];
+      const lines: string[] = [];
+      if (explanation) lines.push(explanation);
+      if (plan.length > 0) {
+        for (const item of plan) {
+          if (!item || typeof item !== "object") continue;
+          const step = String((item as Record<string, unknown>).step || "");
+          const status = String((item as Record<string, unknown>).status || "pending");
+          if (!step) continue;
+          lines.push(`- [${status}] ${step}`);
+        }
+      }
+      return lines.length > 0 ? `Plan updated:\n${lines.join("\n")}` : "Plan updated.";
+    }
+    if (name === "list_mcp_resources") {
+      const server = args.server ? String(args.server) : undefined;
+      const cursor = args.cursor ? String(args.cursor) : undefined;
+      const result = await mcpManager.listResources(server, cursor);
+      return JSON.stringify(result, null, 2);
+    }
+    if (name === "list_mcp_resource_templates") {
+      const server = args.server ? String(args.server) : undefined;
+      const cursor = args.cursor ? String(args.cursor) : undefined;
+      const result = await mcpManager.listResourceTemplates(server, cursor);
+      return JSON.stringify(result, null, 2);
+    }
+    if (name === "read_mcp_resource") {
+      const server = String(args.server || "");
+      const uri = String(args.uri || "");
+      if (!server) return "Error: server is required";
+      if (!uri) return "Error: uri is required";
+      const result = await mcpManager.readResource(server, uri);
       return JSON.stringify(result, null, 2);
     }
     if (name === "memory_read") {
@@ -849,6 +1203,10 @@ async function executeTool(
       };
       const result = await runSubAgent(projectRoot, prompt, taskType, ctxWithTrail, abortSignal);
       return result;
+    }
+    const mcpParsed = parseMcpToolName(name);
+    if (mcpParsed) {
+      return await mcpManager.callTool(mcpParsed.serverId, mcpParsed.toolName, args);
     }
     return `Unknown tool: ${name}`;
   } catch (error) {
@@ -1120,13 +1478,12 @@ async function runCodexOAuthAgent(
   const env = getEnvironmentInfo();
   const projectMemory = readProjectMemory(input.projectRoot);
   const systemPrompt = buildSystemPrompt(env, input.projectRoot, input.enabledSkills, input.availableSkills, projectMemory);
-  const chatTools = buildOpenAITools(env, input.availableSkills);
+  const chatTools = buildOpenAITools(env, input.availableSkills, input.mcpTools);
   const tools = toResponsesTools(chatTools);
 
-  // Codex models have 400K context — use 300K compaction budget
-  const compactedHistory = compactHistory(input.history, 300_000);
-  const inputItems: any[] = toResponsesInput(compactedHistory);
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
+  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
+  const inputItems: any[] = toResponsesInput(compactedHistory);
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
   let finalText = "";
   let totalInputTokens = 0;
@@ -1396,13 +1753,20 @@ function formatToolDetail(name: string, args: Record<string, unknown>): string {
   if (name === "read_file") return `Reading ${String(args.path || "")}`;
   if (name === "write_file") return `Writing ${String(args.path || "")}`;
   if (name === "edit_file") return `Editing ${String(args.path || "")}`;
+  if (name === "apply_patch") return "Applying patch";
   if (name === "glob") return `Finding ${String(args.pattern || "")}`;
   if (name === "grep") return `Searching for ${String(args.pattern || "")}`;
   if (name === "run_command") return `Running: ${String(args.command || "")}`;
+  if (name === "shell_command") return `Running: ${String(args.command || "")}`;
+  if (name === "update_plan") return "Updating plan";
+  if (name === "list_mcp_resources") return "Listing MCP resources";
+  if (name === "list_mcp_resource_templates") return "Listing MCP resource templates";
+  if (name === "read_mcp_resource") return `Reading MCP resource: ${String(args.uri || "")}`;
   if (name === "memory_read") return "Reading project memory";
   if (name === "memory_write") return "Updating project memory";
   if (name === "load_skill") return `Loading skill: ${String(args.skill_id || "")}`;
   if (name === "spawn_task") return `Task: ${String(args.description || "Working...")}`;
+  if (name.startsWith("mcp__")) return `MCP: ${name}`;
   return name;
 }
 
@@ -1435,12 +1799,11 @@ async function runAnthropicAgent(
   const env = getEnvironmentInfo();
   const projectMemory = readProjectMemory(input.projectRoot);
   const systemPrompt = buildSystemPrompt(env, input.projectRoot, input.enabledSkills, input.availableSkills, projectMemory);
-  const tools = buildAnthropicTools(env, input.availableSkills);
+  const tools = buildAnthropicTools(env, input.availableSkills, input.mcpTools);
 
-  // Compact history if approaching context limits (~80% of 200K context window)
-  const compactedHistory = compactHistory(input.history, 150_000);
-  const messages: Anthropic.MessageParam[] = toAnthropicMessages(compactedHistory);
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
+  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
+  const messages: Anthropic.MessageParam[] = toAnthropicMessages(compactedHistory);
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
   let finalText = "";
   let totalInputTokens = 0;
@@ -1644,12 +2007,11 @@ async function runOpenAIAgent(
   const env = getEnvironmentInfo();
   const projectMemory = readProjectMemory(input.projectRoot);
   const systemPrompt = buildSystemPrompt(env, input.projectRoot, input.enabledSkills, input.availableSkills, projectMemory);
-  const tools = buildOpenAITools(env, input.availableSkills);
+  const tools = buildOpenAITools(env, input.availableSkills, input.mcpTools);
 
-  // Compact history (~80% of 128K context window)
-  const compactedHistory = compactHistory(input.history, 100_000);
-  const messages = toOpenAIMessages(compactedHistory, systemPrompt);
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
+  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
+  const messages = toOpenAIMessages(compactedHistory, systemPrompt);
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
   let finalText = "";
   let totalInputTokens = 0;

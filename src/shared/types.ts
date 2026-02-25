@@ -81,6 +81,8 @@ export type ThinkingLevel = "none" | "low" | "medium" | "high" | "xhigh";
 export interface AgentSettings {
   maxTokens: number;
   maxToolSteps: number;
+  /** Hard cap for persisted messages per thread (oldest messages are pruned). */
+  maxMessagesPerThread: number;
   /** Model ID for sub-agents (empty string = use same model as parent) */
   subAgentModel: string;
   /** Max tokens per sub-agent response */
@@ -105,6 +107,12 @@ export interface AppState {
   settings: AgentSettings;
   /** Per-project skill enablement */
   projectSkills: ProjectSkillConfig[];
+}
+
+export interface ThreadMessageSummary {
+  threadId: string;
+  count: number;
+  lastCreatedAt?: string;
 }
 
 export interface NewProjectInput {
@@ -243,6 +251,8 @@ export interface FileTreeEntry {
 
 export interface SncodeApi {
   getState: () => Promise<AppState>;
+  getThreadMessages: (threadId: string) => Promise<ThreadMessage[]>;
+  getThreadMessageMeta: () => Promise<ThreadMessageSummary[]>;
   pickFolder: () => Promise<string | null>;
   createProject: (payload: NewProjectInput) => Promise<Project>;
   createThread: (payload: NewThreadInput) => Promise<Thread>;

@@ -51,7 +51,7 @@ hljs.registerLanguage("cs", csharp);
 hljs.registerLanguage("cpp", cpp);
 hljs.registerLanguage("c", cpp);
 
-import { AgentSettings, AppState, FileTreeEntry, GitDiffEntry, GitStatusInfo, ImageAttachment, ImageMediaType, ProviderId, ProviderConfig, Project, ThinkingLevel, ThreadMessage, TodoItem } from "../shared/types";
+import { AgentSettings, AppState, FileTreeEntry, GitDiffEntry, GitStatusInfo, ImageAttachment, ImageMediaType, ProviderId, ProviderConfig, Project, ThinkingLevel, ThreadMessage, ThreadMessageSummary, TodoItem } from "../shared/types";
 import { ALL_MODELS, API_KEY_URLS, labelForModelId, providerForModelId, modelEntryById, estimateCost } from "../shared/models";
 import SettingsModal from "./SettingsModal";
 
@@ -62,7 +62,7 @@ const emptyState: AppState = {
   threads: [],
   messages: [],
   providers: [],
-  settings: { maxTokens: 16384, maxToolSteps: 25, subAgentModel: "", subAgentMaxTokens: 8192, subAgentMaxToolSteps: 15, maxConcurrentTasks: 3, theme: "dark", thinkingLevel: "none", onboardingComplete: false },
+  settings: { maxTokens: 16384, maxToolSteps: 25, maxMessagesPerThread: 400, subAgentModel: "", subAgentMaxTokens: 8192, subAgentMaxToolSteps: 15, maxConcurrentTasks: 3, theme: "dark", thinkingLevel: "none", onboardingComplete: false },
   projectSkills: [],
 };
 
@@ -74,7 +74,8 @@ type RightSidebarState = {
   diffs?: GitDiffEntry[];
   taskMsgId?: string;
 };
-type ThreadMessageMetaMap = Map<string, { count: number; last?: ThreadMessage }>;
+type ThreadMessageMetaMap = Map<string, ThreadMessageSummary>;
+const EMPTY_THREAD_MESSAGES: ThreadMessage[] = [];
 
 /* ── helpers ── */
 
@@ -108,6 +109,12 @@ function activeModelLabel(providers: ProviderConfig[]) {
 
 function activeModelId(providers: ProviderConfig[]) {
   return providers.find((x) => x.enabled)?.model ?? "";
+}
+
+function estimateContextTokensForMessage(msg: ThreadMessage): number {
+  let tokens = Math.ceil(msg.content.length / 4) + 8;
+  if (msg.images?.length) tokens += msg.images.length * 1500;
+  return tokens;
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
@@ -2425,7 +2432,7 @@ const SidebarPanel = React.memo(function SidebarPanel({
                 <div className="ml-3 space-y-px border-l border-[var(--border)] pl-1.5">
                   {projectThreads.map((thread) => {
                     const active = thread.id === selThreadId;
-                    const last = threadMessageMeta.get(thread.id)?.last;
+                    const lastCreatedAt = threadMessageMeta.get(thread.id)?.lastCreatedAt;
                     return (
                       <div key={thread.id} className="group relative">
                         <button
@@ -2440,7 +2447,7 @@ const SidebarPanel = React.memo(function SidebarPanel({
                             {runningThreads.has(thread.id) && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
                             <span className="min-w-0 truncate">{thread.title}</span>
                           </span>
-                          <span className="shrink-0 text-[10px] text-[var(--text-dimmer)] group-hover:hidden">{last ? timeAgo(last.createdAt) : ""}</span>
+                          <span className="shrink-0 text-[10px] text-[var(--text-dimmer)] group-hover:hidden">{lastCreatedAt ? timeAgo(lastCreatedAt) : ""}</span>
                         </button>
                         <button onClick={(ev) => { ev.stopPropagation(); void onDeleteThread(thread.id); }} className="absolute right-1.5 top-1/2 hidden -translate-y-1/2 rounded-md p-1 text-[var(--text-dim)] transition hover:bg-[var(--bg-active)] hover:text-red-400 group-hover:block" title="Delete thread"><TrashIcon /></button>
                       </div>
@@ -2550,6 +2557,7 @@ export default function App() {
   const [searchHighlight, setSearchHighlight] = useState("");
   // Todo system
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [threadMessageMetaRows, setThreadMessageMetaRows] = useState<ThreadMessageSummary[]>([]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -2559,6 +2567,11 @@ export default function App() {
   const [chatViewportHeight, setChatViewportHeight] = useState(0);
   const streamChunkBufferRef = useRef("");
   const streamChunkRafRef = useRef<number | null>(null);
+  const messageIndexRef = useRef<Map<string, number>>(new Map());
+  const pendingMessageUpdatesRef = useRef<Map<string, ThreadMessage>>(new Map());
+  const messageUpdatesRafRef = useRef<number | null>(null);
+  const threadMessagesFetchSeqRef = useRef(0);
+  const perfRendererRef = useRef(false);
 
   // Derive isBusy for the currently selected thread
   const isBusy = selThreadId ? runningThreads.has(selThreadId) : false;
@@ -2570,69 +2583,87 @@ export default function App() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    try {
+      perfRendererRef.current = window.localStorage.getItem("sncode.perf.renderer") === "1";
+    } catch {
+      perfRendererRef.current = false;
+    }
+  }, []);
+
   const selProject = useMemo(() => state.projects.find((p) => p.id === selProjectId) ?? null, [state.projects, selProjectId]);
   const selThread = useMemo(() => state.threads.find((t) => t.id === selThreadId) ?? null, [state.threads, selThreadId]);
-  const threadMessages = useMemo(() => state.messages.filter((m) => m.threadId === selThreadId), [state.messages, selThreadId]);
+  const threadMessages = selThreadId ? state.messages : EMPTY_THREAD_MESSAGES;
   const threadMessageMeta = useMemo<ThreadMessageMetaMap>(() => {
     const map: ThreadMessageMetaMap = new Map();
-    for (const msg of state.messages) {
-      const prev = map.get(msg.threadId);
-      if (prev) {
-        prev.count += 1;
-        prev.last = msg;
-      } else {
-        map.set(msg.threadId, { count: 1, last: msg });
-      }
-    }
+    for (const row of threadMessageMetaRows) map.set(row.threadId, row);
     return map;
-  }, [state.messages]);
+  }, [threadMessageMetaRows]);
+  const messageById = useMemo(() => {
+    const byId = new Map<string, ThreadMessage>();
+    for (const msg of threadMessages) byId.set(msg.id, msg);
+    return byId;
+  }, [threadMessages]);
+  const messageIndexById = useMemo(() => {
+    const byId = new Map<string, number>();
+    for (let i = 0; i < threadMessages.length; i++) byId.set(threadMessages[i].id, i);
+    return byId;
+  }, [threadMessages]);
 
   // Comprehensive thread stats: tokens, tool calls, context, pricing
   const threadStats = useMemo(() => {
     let inputTokens = 0, outputTokens = 0, toolCalls = 0, userMsgs = 0, assistantMsgs = 0;
-    let contextChars = 0;
+    let contextInputTokens = 0;
     for (const m of threadMessages) {
       if (m.metadata?.inputTokens) inputTokens += m.metadata.inputTokens;
       if (m.metadata?.outputTokens) outputTokens += m.metadata.outputTokens;
       if (m.metadata?.toolName) toolCalls++;
       if (m.role === "user") userMsgs++;
       if (m.role === "assistant" && !m.metadata?.toolName) assistantMsgs++;
-      contextChars += m.content.length;
-      if (m.images) for (const img of m.images) contextChars += img.data.length * 0.75;
+      contextInputTokens += estimateContextTokensForMessage(m);
     }
     const totalTokens = inputTokens + outputTokens;
-    const contextTokens = Math.round(contextChars / 4);
     // Get active model for pricing + context window
     const activeProvider = state.providers.find((p) => p.enabled);
     const modelId = activeProvider?.model || "";
     const modelEntry = modelEntryById(modelId);
     const contextWindow = modelEntry?.contextWindow || 200_000;
+    const reservedOutputTokens = state.settings.maxTokens || 0;
+    const contextTokens = contextInputTokens + reservedOutputTokens;
     const contextPct = contextWindow > 0 ? Math.min(100, Math.round((contextTokens / contextWindow) * 100)) : 0;
     const cost = estimateCost(modelId, inputTokens, outputTokens);
     return { inputTokens, outputTokens, totalTokens, toolCalls, userMsgs, assistantMsgs, contextTokens, contextWindow, contextPct, cost, modelId };
-  }, [threadMessages, state.providers]);
+  }, [threadMessages, state.providers, state.settings.maxTokens]);
   const liveRightSidebarTaskMsg = useMemo(() => {
     if (!rightSidebar || rightSidebar.type !== "subagent" || !rightSidebar.taskMsgId) return undefined;
-    return state.messages.find((m) => m.id === rightSidebar.taskMsgId);
-  }, [rightSidebar, state.messages]);
+    return messageById.get(rightSidebar.taskMsgId);
+  }, [rightSidebar, messageById]);
+
+  useEffect(() => {
+    messageIndexRef.current = messageIndexById;
+  }, [messageIndexById]);
 
   /* ── effects ── */
 
   useEffect(() => {
-    window.sncode.getState().then((next) => {
-      setState(next);
+    void Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta()]).then(([next, meta]) => {
+      setState({ ...next, messages: [] });
+      setThreadMessageMetaRows(meta);
       const p = next.projects[0];
       if (p) {
         setSelProjectId(p.id);
         setExpandedProjects(new Set([p.id]));
         const t = next.threads.find((th) => th.projectId === p.id);
-        if (t) setSelThreadId(t.id);
+        if (t) {
+          setSelThreadId(t.id);
+          void refreshThreadMessages(t.id);
+        }
       }
       setBooting(false);
     });
   }, []);
 
-  // Agent events — status tracked globally, chunks/messages only for selected thread
+  // Agent events - status tracked globally, chunks/messages only for selected thread
   useEffect(() => {
     const flushStreamChunk = () => {
       streamChunkRafRef.current = null;
@@ -2644,26 +2675,76 @@ export default function App() {
       });
     };
 
+    const flushPendingMessageUpdates = () => {
+      messageUpdatesRafRef.current = null;
+      const queued = pendingMessageUpdatesRef.current;
+      if (queued.size === 0) return;
+      const updates = Array.from(queued.values());
+      queued.clear();
+      const start = performance.now();
+
+      startTransition(() => {
+        setState((prev) => {
+          const nextMessages = [...prev.messages];
+          const nextIndex = new Map(messageIndexRef.current);
+          let changed = false;
+
+          for (const nextMsg of updates) {
+            const hintedIdx = nextIndex.get(nextMsg.id);
+            const existingIdx =
+              hintedIdx !== undefined && nextMessages[hintedIdx]?.id === nextMsg.id
+                ? hintedIdx
+                : nextMessages.findIndex((m) => m.id === nextMsg.id);
+
+            if (existingIdx >= 0) {
+              nextMessages[existingIdx] = nextMsg;
+              nextIndex.set(nextMsg.id, existingIdx);
+              changed = true;
+              continue;
+            }
+
+            const appendIdx = nextMessages.length;
+            nextMessages.push(nextMsg);
+            nextIndex.set(nextMsg.id, appendIdx);
+            changed = true;
+          }
+
+          if (!changed) return prev;
+          messageIndexRef.current = nextIndex;
+          return { ...prev, messages: nextMessages };
+        });
+      });
+
+      if (perfRendererRef.current) {
+        const elapsedMs = performance.now() - start;
+        if (elapsedMs > 12 || updates.length > 1) {
+          console.debug(`[perf][renderer] batched ${updates.length} agent:message events in ${elapsedMs.toFixed(1)}ms`);
+        }
+      }
+    };
+
     const off1 = window.sncode.on("agent:status", (e) => {
-      // Always update the global running set regardless of selected thread
       setRunningThreads((prev) => {
         const next = new Set(prev);
         if (e.status === "running") next.add(e.threadId);
         else next.delete(e.threadId);
         return next;
       });
-      // Only update UI text for the selected thread
       if (e.threadId === selThreadId) {
         setStatusText(e.detail);
         if (e.status !== "running") {
+          if (messageUpdatesRafRef.current !== null) {
+            cancelAnimationFrame(messageUpdatesRafRef.current);
+            flushPendingMessageUpdates();
+          }
           streamChunkBufferRef.current = "";
           if (streamChunkRafRef.current !== null) {
             cancelAnimationFrame(streamChunkRafRef.current);
             streamChunkRafRef.current = null;
           }
-          setStreamChunk("");
-          // Final refresh to reconcile state (thread title, messages, etc.)
-          void refresh();
+          setStreamChunk((prev) => (prev ? "" : prev));
+          void refreshThreadMessages(e.threadId);
+          void refreshThreadMessageMeta();
         }
       }
     });
@@ -2675,33 +2756,27 @@ export default function App() {
       }
     });
     const off3 = window.sncode.on("agent:tool", () => {
-      // Tool presence is now shown via pending tool messages — no separate indicator needed
+      // Tool presence is shown via pending tool messages.
     });
-    // Real-time message insertion / update (intermediate text + tool results)
     const off4 = window.sncode.on("agent:message", (e) => {
       if (e.threadId !== selThreadId) return;
-      startTransition(() => {
-        setState((prev) => {
-          const existingIdx = prev.messages.findIndex((m) => m.id === e.message.id);
-          if (existingIdx >= 0) {
-            // Update existing message (e.g. pending tool → completed)
-            const updated = [...prev.messages];
-            updated[existingIdx] = e.message;
-            return { ...prev, messages: updated };
-          }
-          // Append new message
-          return { ...prev, messages: [...prev.messages, e.message] };
-        });
-      });
-      // Clear streaming preview — the streamed text is now a stored message
+      pendingMessageUpdatesRef.current.set(e.message.id, e.message);
+      if (messageUpdatesRafRef.current === null) {
+        messageUpdatesRafRef.current = requestAnimationFrame(flushPendingMessageUpdates);
+      }
       streamChunkBufferRef.current = "";
       if (streamChunkRafRef.current !== null) {
         cancelAnimationFrame(streamChunkRafRef.current);
         streamChunkRafRef.current = null;
       }
-      setStreamChunk("");
+      setStreamChunk((prev) => (prev ? "" : prev));
     });
     return () => {
+      if (messageUpdatesRafRef.current !== null) {
+        cancelAnimationFrame(messageUpdatesRafRef.current);
+        messageUpdatesRafRef.current = null;
+      }
+      pendingMessageUpdatesRef.current.clear();
       if (streamChunkRafRef.current !== null) {
         cancelAnimationFrame(streamChunkRafRef.current);
         streamChunkRafRef.current = null;
@@ -2714,14 +2789,22 @@ export default function App() {
   // When switching threads: clear stale stream state and refresh messages from store
   useEffect(() => {
     streamChunkBufferRef.current = "";
+    pendingMessageUpdatesRef.current.clear();
+    if (messageUpdatesRafRef.current !== null) {
+      cancelAnimationFrame(messageUpdatesRafRef.current);
+      messageUpdatesRafRef.current = null;
+    }
     if (streamChunkRafRef.current !== null) {
       cancelAnimationFrame(streamChunkRafRef.current);
       streamChunkRafRef.current = null;
     }
-    setStreamChunk("");
+    setStreamChunk((prev) => (prev ? "" : prev));
     setStatusText(selThreadId && runningThreads.has(selThreadId) ? "Running" : "Idle");
-    // Refresh to load any messages stored while we were on a different thread
-    void refresh();
+    // Refresh only selected-thread messages to keep thread switches responsive.
+    if (selThreadId) {
+      void refreshThreadMessages(selThreadId);
+      void refreshThreadMessageMeta();
+    }
   }, [selThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -2827,10 +2910,31 @@ export default function App() {
 
   /* ── actions ── */
 
+  function applyStateWithoutMessages(next: AppState) {
+    setState((prev) => {
+      const validThreadIds = new Set(next.threads.map((t) => t.id));
+      const retainedMessages = prev.messages.filter((m) => validThreadIds.has(m.threadId));
+      return { ...next, messages: retainedMessages };
+    });
+  }
+
+  async function refreshThreadMessageMeta() {
+    const meta = await window.sncode.getThreadMessageMeta();
+    setThreadMessageMetaRows(meta);
+  }
+
   async function refresh() {
-    const s = await window.sncode.getState();
-    setState(s);
+    const [s, meta] = await Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta()]);
+    applyStateWithoutMessages(s);
+    setThreadMessageMetaRows(meta);
     return s;
+  }
+
+  async function refreshThreadMessages(threadId: string) {
+    const seq = ++threadMessagesFetchSeqRef.current;
+    const threadMessages = await window.sncode.getThreadMessages(threadId);
+    if (threadMessagesFetchSeqRef.current !== seq) return;
+    setState((prev) => ({ ...prev, messages: threadMessages }));
   }
 
   async function addProject() {
@@ -2853,7 +2957,8 @@ export default function App() {
 
   async function deleteThread(threadId: string) {
     const next = await window.sncode.deleteThread(threadId);
-    setState(next);
+    applyStateWithoutMessages(next);
+    void refreshThreadMessageMeta();
     if (selThreadId === threadId) {
       const remaining = next.threads.filter((t) => t.projectId === selProjectId);
       setSelThreadId(remaining[0]?.id ?? null);
@@ -2906,7 +3011,9 @@ export default function App() {
         images,
         permissionMode: permission,
       });
-      setState(next);
+      applyStateWithoutMessages(next);
+      void refreshThreadMessages(selThreadId);
+      void refreshThreadMessageMeta();
     } catch {
       setRunningThreads((prev) => { const next = new Set(prev); next.delete(selThreadId!); return next; });
       setStatusText("Error sending message");
@@ -3199,7 +3306,7 @@ export default function App() {
           {threadStats.totalTokens > 0 && (
             <div className="flex shrink-0 items-center gap-3 border-t border-[var(--border)] px-4 py-1.5">
               {/* Context usage bar */}
-              <div className="flex items-center gap-1.5" title={`Context: ~${threadStats.contextTokens.toLocaleString()} / ${threadStats.contextWindow.toLocaleString()} tokens`}>
+              <div className="flex items-center gap-1.5" title={`Estimated context (input + max output reserve): ~${threadStats.contextTokens.toLocaleString()} / ${threadStats.contextWindow.toLocaleString()} tokens`}>
                 <span className="text-[10px] text-[var(--text-dimmest)]">CTX</span>
                 <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--bg-active)]">
                   <div
@@ -3315,3 +3422,4 @@ export default function App() {
     </div>
   );
 }
+

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 import { nanoid } from "nanoid";
-import { AgentSettings, AppState, ImageAttachment, NewProjectInput, NewThreadInput, Project, ProjectSkillConfig, ProviderConfig, Thread, ThreadMessage } from "../shared/types";
+import { AgentSettings, AppState, ImageAttachment, NewProjectInput, NewThreadInput, Project, ProjectSkillConfig, ProviderConfig, Thread, ThreadMessage, ThreadMessageSummary } from "../shared/types";
 import { DEFAULT_ANTHROPIC_MODEL, DEFAULT_CODEX_MODEL } from "../shared/models";
 
 const now = () => new Date().toISOString();
@@ -10,6 +10,7 @@ const now = () => new Date().toISOString();
 const DEFAULT_SETTINGS: AgentSettings = {
   maxTokens: 16384,
   maxToolSteps: 25,
+  maxMessagesPerThread: 400,
   subAgentModel: "",
   subAgentMaxTokens: 8192,
   subAgentMaxToolSteps: 15,
@@ -55,11 +56,16 @@ interface LegacyState {
 
 export class Store {
   private state: AppState = structuredClone(defaultState);
+  private persistTimer: NodeJS.Timeout | null = null;
+  private persistPending = false;
+  private readonly persistDelayMs = 150;
+  private threadMessageMetaById = new Map<string, ThreadMessageSummary>();
 
   load(): AppState {
     const target = dataPath();
     if (!fs.existsSync(target)) {
       this.state = structuredClone(defaultState);
+      this.threadMessageMetaById = new Map();
       return this.getState();
     }
 
@@ -70,11 +76,13 @@ export class Store {
     } catch {
       // Recover from corrupted state by resetting to defaults.
       this.state = structuredClone(defaultState);
-      this.persist();
+      this.threadMessageMetaById = new Map();
+      this.persistImmediate();
       return this.getState();
     }
     if (!parsed) {
       this.state = structuredClone(defaultState);
+      this.threadMessageMetaById = new Map();
       return this.getState();
     }
     const legacyThreads = (parsed as LegacyState).threads ?? [];
@@ -118,14 +126,132 @@ export class Store {
     if (this.state.providers.length === 0) {
       this.state.providers = structuredClone(defaultProviders);
     }
+    const wasTrimmed = this.enforceMessageCapForAllThreads();
+    if (wasTrimmed) this.persistImmediate();
+    this.rebuildThreadMessageMeta();
 
     return this.getState();
   }
 
-  private persist() {
+  private rebuildThreadMessageMeta() {
+    const meta = new Map<string, ThreadMessageSummary>();
+    for (const msg of this.state.messages) {
+      const prev = meta.get(msg.threadId);
+      if (!prev) {
+        meta.set(msg.threadId, {
+          threadId: msg.threadId,
+          count: 1,
+          lastCreatedAt: msg.createdAt,
+        });
+        continue;
+      }
+      prev.count += 1;
+      if (!prev.lastCreatedAt || msg.createdAt >= prev.lastCreatedAt) {
+        prev.lastCreatedAt = msg.createdAt;
+      }
+    }
+    this.threadMessageMetaById = meta;
+  }
+
+  private rebuildThreadMessageMetaForThread(threadId: string) {
+    let count = 0;
+    let lastCreatedAt: string | undefined;
+    for (const msg of this.state.messages) {
+      if (msg.threadId !== threadId) continue;
+      count += 1;
+      if (!lastCreatedAt || msg.createdAt >= lastCreatedAt) {
+        lastCreatedAt = msg.createdAt;
+      }
+    }
+    if (count === 0) {
+      this.threadMessageMetaById.delete(threadId);
+      return;
+    }
+    this.threadMessageMetaById.set(threadId, { threadId, count, lastCreatedAt });
+  }
+
+  private persistImmediate() {
     const target = dataPath();
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, JSON.stringify(this.state, null, 2), "utf8");
+  }
+
+  private persist() {
+    this.persistPending = true;
+    if (this.persistTimer) return;
+
+    this.persistTimer = setTimeout(() => {
+      this.persistTimer = null;
+      if (!this.persistPending) return;
+      this.persistPending = false;
+      this.persistImmediate();
+    }, this.persistDelayMs);
+
+    if (typeof this.persistTimer.unref === "function") {
+      this.persistTimer.unref();
+    }
+  }
+
+  private enforceMessageCapForThread(threadId: string): boolean {
+    const cap = this.state.settings.maxMessagesPerThread;
+    if (!Number.isFinite(cap) || cap < 1) return false;
+
+    let threadCount = 0;
+    for (const msg of this.state.messages) {
+      if (msg.threadId === threadId) threadCount += 1;
+    }
+
+    let toRemove = threadCount - cap;
+    if (toRemove <= 0) return false;
+
+    const next: ThreadMessage[] = [];
+    for (const msg of this.state.messages) {
+      if (msg.threadId === threadId && toRemove > 0) {
+        toRemove -= 1;
+        continue;
+      }
+      next.push(msg);
+    }
+    this.state.messages = next;
+    return true;
+  }
+
+  private enforceMessageCapForAllThreads(): boolean {
+    const cap = this.state.settings.maxMessagesPerThread;
+    if (!Number.isFinite(cap) || cap < 1) return false;
+
+    const counts = new Map<string, number>();
+    for (const msg of this.state.messages) {
+      counts.set(msg.threadId, (counts.get(msg.threadId) ?? 0) + 1);
+    }
+
+    const removeByThread = new Map<string, number>();
+    for (const [threadId, count] of counts) {
+      if (count > cap) removeByThread.set(threadId, count - cap);
+    }
+    if (removeByThread.size === 0) return false;
+
+    const next: ThreadMessage[] = [];
+    for (const msg of this.state.messages) {
+      const remaining = removeByThread.get(msg.threadId) ?? 0;
+      if (remaining > 0) {
+        removeByThread.set(msg.threadId, remaining - 1);
+        continue;
+      }
+      next.push(msg);
+    }
+    this.state.messages = next;
+    return true;
+  }
+
+  flushPersist() {
+    if (this.persistTimer) {
+      clearTimeout(this.persistTimer);
+      this.persistTimer = null;
+    }
+    if (!this.persistPending) return;
+    this.persistPending = false;
+    this.persistImmediate();
   }
 
   getState(): AppState {
@@ -139,12 +265,17 @@ export class Store {
   /** Wipe all data and reset to factory defaults */
   resetAll(): AppState {
     this.state = structuredClone(defaultState);
-    this.persist();
+    this.threadMessageMetaById = new Map();
+    this.persistImmediate();
     return this.getState();
   }
 
   updateSettings(updates: Partial<AgentSettings>): AgentSettings {
     this.state.settings = { ...this.state.settings, ...updates };
+    if (updates.maxMessagesPerThread !== undefined) {
+      const trimmed = this.enforceMessageCapForAllThreads();
+      if (trimmed) this.rebuildThreadMessageMeta();
+    }
     this.persist();
     return this.getSettings();
   }
@@ -181,6 +312,7 @@ export class Store {
   deleteThread(threadId: string): void {
     this.state.threads = this.state.threads.filter((t) => t.id !== threadId);
     this.state.messages = this.state.messages.filter((m) => m.threadId !== threadId);
+    this.threadMessageMetaById.delete(threadId);
     this.persist();
   }
 
@@ -202,13 +334,22 @@ export class Store {
     return this.state.messages.filter((message) => message.threadId === threadId);
   }
 
+  getThreadMessageMeta(): ThreadMessageSummary[] {
+    return Array.from(this.threadMessageMetaById.values()).map((entry) => ({ ...entry }));
+  }
+
+  getMessageById(messageId: string): ThreadMessage | undefined {
+    const msg = this.state.messages.find((m) => m.id === messageId);
+    return msg ? structuredClone(msg) : undefined;
+  }
+
   appendMessage(
     threadId: string,
     role: ThreadMessage["role"],
     content: string,
     metadata?: ThreadMessage["metadata"],
     images?: ImageAttachment[]
-  ) {
+  ): ThreadMessage {
     if (!this.state.threads.some((item) => item.id === threadId)) {
       throw new Error("Thread not found");
     }
@@ -229,7 +370,19 @@ export class Store {
     if (thread) {
       thread.updatedAt = now();
     }
+    const trimmed = this.enforceMessageCapForThread(threadId);
+    if (trimmed) this.rebuildThreadMessageMetaForThread(threadId);
+    else {
+      const prev = this.threadMessageMetaById.get(threadId);
+      if (prev) {
+        prev.count += 1;
+        prev.lastCreatedAt = msg.createdAt;
+      } else {
+        this.threadMessageMetaById.set(threadId, { threadId, count: 1, lastCreatedAt: msg.createdAt });
+      }
+    }
     this.persist();
+    return structuredClone(msg);
   }
 
   updateMessage(messageId: string, updates: { content?: string; metadata?: ThreadMessage["metadata"] }): ThreadMessage | undefined {
