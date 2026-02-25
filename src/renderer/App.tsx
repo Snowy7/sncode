@@ -77,6 +77,33 @@ type RightSidebarState = {
 type ThreadMessageMetaMap = Map<string, ThreadMessageSummary>;
 const EMPTY_THREAD_MESSAGES: ThreadMessage[] = [];
 
+type PerfAggregate = {
+  renders: number;
+  commitSamples: number;
+  commitTotalMs: number;
+  commitMaxMs: number;
+  ipcCalls: number;
+  ipcBytes: number;
+};
+
+type PerfTurnSnapshot = PerfAggregate & {
+  id: string;
+  threadId: string;
+  startedAtMs: number;
+  endedAtMs?: number;
+};
+
+function makeEmptyPerfAggregate(): PerfAggregate {
+  return {
+    renders: 0,
+    commitSamples: 0,
+    commitTotalMs: 0,
+    commitMaxMs: 0,
+    ipcCalls: 0,
+    ipcBytes: 0,
+  };
+}
+
 /* ── helpers ── */
 
 function timeAgo(iso: string) {
@@ -115,6 +142,16 @@ function estimateContextTokensForMessage(msg: ThreadMessage): number {
   let tokens = Math.ceil(msg.content.length / 4) + 8;
   if (msg.images?.length) tokens += msg.images.length * 1500;
   return tokens;
+}
+
+function estimatePayloadBytes(payload: unknown): number {
+  try {
+    const json = JSON.stringify(payload);
+    if (!json) return 0;
+    return new TextEncoder().encode(json).length;
+  } catch {
+    return 0;
+  }
 }
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
@@ -2558,6 +2595,9 @@ export default function App() {
   // Todo system
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [threadMessageMetaRows, setThreadMessageMetaRows] = useState<ThreadMessageSummary[]>([]);
+  const [showPerfPanel, setShowPerfPanel] = useState(false);
+  const [perfPanelTick, setPerfPanelTick] = useState(0);
+  const [lastPerfTurn, setLastPerfTurn] = useState<PerfTurnSnapshot | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -2572,6 +2612,12 @@ export default function App() {
   const messageUpdatesRafRef = useRef<number | null>(null);
   const threadMessagesFetchSeqRef = useRef(0);
   const perfRendererRef = useRef(false);
+  const perfPanelRef = useRef(false);
+  const renderStartRef = useRef(0);
+  const perfGlobalRef = useRef<PerfAggregate>(makeEmptyPerfAggregate());
+  const perfActiveTurnRef = useRef<PerfTurnSnapshot | null>(null);
+
+  renderStartRef.current = performance.now();
 
   // Derive isBusy for the currently selected thread
   const isBusy = selThreadId ? runningThreads.has(selThreadId) : false;
@@ -2586,8 +2632,13 @@ export default function App() {
   useEffect(() => {
     try {
       perfRendererRef.current = window.localStorage.getItem("sncode.perf.renderer") === "1";
+      const perfPanelEnabled = window.localStorage.getItem("sncode.perf.panel") === "1";
+      perfPanelRef.current = perfPanelEnabled;
+      setShowPerfPanel(perfPanelEnabled);
     } catch {
       perfRendererRef.current = false;
+      perfPanelRef.current = false;
+      setShowPerfPanel(false);
     }
   }, []);
 
@@ -2643,10 +2694,37 @@ export default function App() {
     messageIndexRef.current = messageIndexById;
   }, [messageIndexById]);
 
+  useLayoutEffect(() => {
+    if (!perfPanelRef.current) return;
+    const commitMs = performance.now() - renderStartRef.current;
+    const global = perfGlobalRef.current;
+    global.renders += 1;
+    global.commitSamples += 1;
+    global.commitTotalMs += commitMs;
+    if (commitMs > global.commitMaxMs) global.commitMaxMs = commitMs;
+
+    const active = perfActiveTurnRef.current;
+    if (!active) return;
+    active.renders += 1;
+    active.commitSamples += 1;
+    active.commitTotalMs += commitMs;
+    if (commitMs > active.commitMaxMs) active.commitMaxMs = commitMs;
+  });
+
+  useEffect(() => {
+    if (!showPerfPanel) return;
+    const timer = window.setInterval(() => {
+      setPerfPanelTick((prev) => prev + 1);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [showPerfPanel]);
+
   /* ── effects ── */
 
   useEffect(() => {
     void Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta()]).then(([next, meta]) => {
+      trackIpcPayload(next);
+      trackIpcPayload(meta);
       setState({ ...next, messages: [] });
       setThreadMessageMetaRows(meta);
       const p = next.projects[0];
@@ -2730,6 +2808,9 @@ export default function App() {
         else next.delete(e.threadId);
         return next;
       });
+      if (e.status !== "running") {
+        finishPerfTurn(e.threadId);
+      }
       if (e.threadId === selThreadId) {
         setStatusText(e.detail);
         if (e.status !== "running") {
@@ -2910,6 +2991,41 @@ export default function App() {
 
   /* ── actions ── */
 
+  function trackIpcPayload(payload: unknown, threadId?: string) {
+    if (!perfPanelRef.current) return;
+    const bytes = estimatePayloadBytes(payload);
+    if (bytes <= 0) return;
+
+    const global = perfGlobalRef.current;
+    global.ipcCalls += 1;
+    global.ipcBytes += bytes;
+
+    const active = perfActiveTurnRef.current;
+    if (!active) return;
+    if (threadId && active.threadId !== threadId) return;
+    active.ipcCalls += 1;
+    active.ipcBytes += bytes;
+  }
+
+  function startPerfTurn(threadId: string) {
+    if (!perfPanelRef.current) return;
+    perfActiveTurnRef.current = {
+      id: `${threadId}:${Date.now()}`,
+      threadId,
+      startedAtMs: performance.now(),
+      ...makeEmptyPerfAggregate(),
+    };
+  }
+
+  function finishPerfTurn(threadId: string) {
+    if (!perfPanelRef.current) return;
+    const active = perfActiveTurnRef.current;
+    if (!active || active.threadId !== threadId) return;
+    const snapshot: PerfTurnSnapshot = { ...active, endedAtMs: performance.now() };
+    perfActiveTurnRef.current = null;
+    setLastPerfTurn(snapshot);
+  }
+
   function applyStateWithoutMessages(next: AppState) {
     setState((prev) => {
       const validThreadIds = new Set(next.threads.map((t) => t.id));
@@ -2920,11 +3036,14 @@ export default function App() {
 
   async function refreshThreadMessageMeta() {
     const meta = await window.sncode.getThreadMessageMeta();
+    trackIpcPayload(meta);
     setThreadMessageMetaRows(meta);
   }
 
   async function refresh() {
     const [s, meta] = await Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta()]);
+    trackIpcPayload(s);
+    trackIpcPayload(meta);
     applyStateWithoutMessages(s);
     setThreadMessageMetaRows(meta);
     return s;
@@ -2933,6 +3052,7 @@ export default function App() {
   async function refreshThreadMessages(threadId: string) {
     const seq = ++threadMessagesFetchSeqRef.current;
     const threadMessages = await window.sncode.getThreadMessages(threadId);
+    trackIpcPayload(threadMessages, threadId);
     if (threadMessagesFetchSeqRef.current !== seq) return;
     setState((prev) => ({ ...prev, messages: threadMessages }));
   }
@@ -2957,6 +3077,7 @@ export default function App() {
 
   async function deleteThread(threadId: string) {
     const next = await window.sncode.deleteThread(threadId);
+    trackIpcPayload(next);
     applyStateWithoutMessages(next);
     void refreshThreadMessageMeta();
     if (selThreadId === threadId) {
@@ -2997,6 +3118,7 @@ export default function App() {
     if (!selThreadId || (!hasText && !hasImages) || isBusy) return;
     const content = msgInput.trim();
     const images = pendingImages.length > 0 ? [...pendingImages] : undefined;
+    startPerfTurn(selThreadId);
     setMsgInput("");
     setPendingImages([]);
     setRunningThreads((prev) => new Set(prev).add(selThreadId));
@@ -3011,10 +3133,12 @@ export default function App() {
         images,
         permissionMode: permission,
       });
+      trackIpcPayload(next, selThreadId);
       applyStateWithoutMessages(next);
       void refreshThreadMessages(selThreadId);
       void refreshThreadMessageMeta();
     } catch {
+      finishPerfTurn(selThreadId);
       setRunningThreads((prev) => { const next = new Set(prev); next.delete(selThreadId!); return next; });
       setStatusText("Error sending message");
     }
@@ -3116,6 +3240,21 @@ export default function App() {
   }
 
   /* ── render ── */
+
+
+  void perfPanelTick;
+  const perfGlobal = perfGlobalRef.current;
+  const perfActiveTurn = perfActiveTurnRef.current;
+  const perfGlobalAvgCommitMs = perfGlobal.commitSamples > 0 ? perfGlobal.commitTotalMs / perfGlobal.commitSamples : 0;
+  const perfActiveAvgCommitMs = perfActiveTurn && perfActiveTurn.commitSamples > 0
+    ? perfActiveTurn.commitTotalMs / perfActiveTurn.commitSamples
+    : 0;
+  const perfLastAvgCommitMs = lastPerfTurn && lastPerfTurn.commitSamples > 0
+    ? lastPerfTurn.commitTotalMs / lastPerfTurn.commitSamples
+    : 0;
+  const perfLastDurationMs = lastPerfTurn?.endedAtMs && lastPerfTurn.startedAtMs
+    ? Math.max(0, lastPerfTurn.endedAtMs - lastPerfTurn.startedAtMs)
+    : 0;
 
   return (
     <div className="flex h-screen text-[var(--text-primary)]" style={{ background: "var(--bg-base)" }}>
@@ -3376,6 +3515,61 @@ export default function App() {
         onClose={() => setRightSidebar(null)}
       />
 
+      {showPerfPanel && (
+        <div className="fixed bottom-3 right-3 z-[70] w-[290px] rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] p-3 text-[10px] text-[var(--text-dimmer)] shadow-xl">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="font-medium text-[var(--text-muted)]">Renderer Perf</span>
+            <span className="text-[var(--text-dimmest)]">sncode.perf.panel=1</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+            <span className="text-[var(--text-dimmest)]">Global renders</span>
+            <span className="text-right">{perfGlobal.renders.toLocaleString()}</span>
+            <span className="text-[var(--text-dimmest)]">Global commit avg/max</span>
+            <span className="text-right">{perfGlobalAvgCommitMs.toFixed(1)} / {perfGlobal.commitMaxMs.toFixed(1)}ms</span>
+            <span className="text-[var(--text-dimmest)]">Global IPC calls/bytes</span>
+            <span className="text-right">{perfGlobal.ipcCalls} / {(perfGlobal.ipcBytes / 1024).toFixed(1)} KB</span>
+          </div>
+
+          <div className="my-2 h-px bg-[var(--border)]" />
+
+          <div className="mb-1 text-[var(--text-muted)]">Active turn</div>
+          {perfActiveTurn ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <span className="text-[var(--text-dimmest)]">Thread</span>
+              <span className="truncate text-right" title={perfActiveTurn.threadId}>{perfActiveTurn.threadId}</span>
+              <span className="text-[var(--text-dimmest)]">Renders</span>
+              <span className="text-right">{perfActiveTurn.renders}</span>
+              <span className="text-[var(--text-dimmest)]">Commit avg/max</span>
+              <span className="text-right">{perfActiveAvgCommitMs.toFixed(1)} / {perfActiveTurn.commitMaxMs.toFixed(1)}ms</span>
+              <span className="text-[var(--text-dimmest)]">IPC calls/bytes</span>
+              <span className="text-right">{perfActiveTurn.ipcCalls} / {(perfActiveTurn.ipcBytes / 1024).toFixed(1)} KB</span>
+            </div>
+          ) : (
+            <div className="text-[var(--text-dimmest)]">Idle</div>
+          )}
+
+          <div className="my-2 h-px bg-[var(--border)]" />
+
+          <div className="mb-1 text-[var(--text-muted)]">Last completed turn</div>
+          {lastPerfTurn ? (
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+              <span className="text-[var(--text-dimmest)]">Duration</span>
+              <span className="text-right">{perfLastDurationMs.toFixed(0)}ms</span>
+              <span className="text-[var(--text-dimmest)]">Renders</span>
+              <span className="text-right">{lastPerfTurn.renders}</span>
+              <span className="text-[var(--text-dimmest)]">Commit avg/max</span>
+              <span className="text-right">{perfLastAvgCommitMs.toFixed(1)} / {lastPerfTurn.commitMaxMs.toFixed(1)}ms</span>
+              <span className="text-[var(--text-dimmest)]">IPC calls/bytes</span>
+              <span className="text-right">{lastPerfTurn.ipcCalls} / {(lastPerfTurn.ipcBytes / 1024).toFixed(1)} KB</span>
+            </div>
+          ) : (
+            <div className="text-[var(--text-dimmest)]">No completed turns yet</div>
+          )}
+        </div>
+      )}
+
+
       {/* ─── Commit modal ─── */}
       {showCommitModal && (
         <>
@@ -3417,7 +3611,7 @@ export default function App() {
       )}
 
       {showSettings && (
-        <SettingsModal providers={state.providers} settings={state.settings} projectId={selProjectId} projectPath={selProject?.folderPath ?? null} onClose={() => setShowSettings(false)} onUpdateProvider={updateProvider} onSaveCredential={saveCredential} onUpdateSettings={updateSettings} onClearAllData={async () => { const s = await window.sncode.clearAllData(); setState(s); setSelProjectId(null); setSelThreadId(null); setExpandedProjects(new Set()); setShowSettings(false); }} />
+        <SettingsModal providers={state.providers} settings={state.settings} projectId={selProjectId} projectPath={selProject?.folderPath ?? null} onClose={() => setShowSettings(false)} onUpdateProvider={updateProvider} onSaveCredential={saveCredential} onUpdateSettings={updateSettings} onClearAllData={async () => { const s = await window.sncode.clearAllData(); trackIpcPayload(s); applyStateWithoutMessages(s); setThreadMessageMetaRows([]); setSelProjectId(null); setSelThreadId(null); setExpandedProjects(new Set()); setShowSettings(false); }} />
       )}
     </div>
   );
