@@ -2431,16 +2431,22 @@ const SidebarPanel = React.memo(function SidebarPanel({
   onOpenFileInSidebar: (relativePath: string) => Promise<void>;
 }) {
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col">
-      <div className="drag-region flex h-12 shrink-0 items-center px-4 pt-1">
-        <div className="no-drag flex items-center">
-          <span className="text-[14px] font-bold tracking-tight"><span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span></span>
+    <aside className="flex w-[264px] shrink-0 flex-col border-r border-[var(--border-subtle)]">
+      <div className="drag-region app-toolbar flex h-12 shrink-0 items-center px-3.5">
+        <div className="no-drag app-toolbar-chip flex items-center gap-2 rounded-lg px-2.5 py-1 shadow-sm">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/80" />
+          <span className="text-[13px] font-bold tracking-tight"><span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span></span>
         </div>
-        <button onClick={() => setShowSettings(true)} className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]" title="Settings"><GearIcon /></button>
+        <button onClick={() => setShowSettings(true)} className="no-drag app-toolbar-btn ml-auto grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] transition hover:text-[var(--text-muted)]" title="Settings"><GearIcon /></button>
       </div>
 
-      <div className="px-3 pb-1.5">
-        <button onClick={() => { if (selProject) void onAddThread(selProject); }} disabled={!selProject} className="w-full rounded-lg border border-[var(--border-strong)] bg-[var(--bg-card)] px-3 py-2 text-left text-[13px] text-[var(--text-muted)] transition hover:border-[var(--border-active)] hover:bg-[var(--bg-elevated)] hover:text-[var(--text-label)] disabled:opacity-30">+ New thread</button>
+      <div className="px-3 pb-2 pt-2">
+        <button onClick={() => { if (selProject) void onAddThread(selProject); }} disabled={!selProject} className="w-full rounded-xl border border-[var(--border-strong)] bg-[var(--toolbar-chip)] px-3 py-2 text-left text-[12px] font-medium text-[var(--text-muted)] shadow-sm transition hover:border-[var(--border-active)] hover:bg-[var(--bg-active)] hover:text-[var(--text-label)] disabled:opacity-30">
+          <span className="inline-flex items-center gap-1.5">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0"><path d="M8 2v12M2 8h12" /></svg>
+            New thread
+          </span>
+        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto px-2 pb-2">
@@ -3316,20 +3322,22 @@ export default function App() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
 
           {/* Top bar */}
-          <div className="drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
-            <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
-              {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
-              <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
-              {selProject && <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
+          <div className="drag-region app-toolbar flex h-12 shrink-0 items-center gap-3 border-b border-[var(--border-subtle)] px-4">
+            <div className="no-drag flex min-w-0 flex-1 items-center">
+              <div className="app-toolbar-chip flex min-w-0 items-center gap-2 rounded-lg px-2.5 py-1 shadow-sm">
+                {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
+                <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
+                {selProject && <span className="shrink-0 rounded-md border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
+              </div>
             </div>
             <div className="no-drag flex shrink-0 items-center gap-1.5">
-              <button onClick={() => setShowSearch((v) => !v)} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="Search (Ctrl+F)"><SearchIcon /></button>
+              <button onClick={() => setShowSearch((v) => !v)} className="app-toolbar-btn grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] transition hover:text-[var(--text-muted)]" title="Search (Ctrl+F)"><SearchIcon /></button>
 
               {selProject && gitStatus.isRepo ? (
                 <>
                   {/* Change indicators */}
                   {(gitStatus.changes > 0 || gitStatus.staged > 0) && (
-                    <span className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]">
+                    <span className="app-toolbar-chip flex items-center gap-1 rounded-lg px-2 py-1 text-[11px]">
                       <span className="text-amber-400">{gitStatus.changes}M</span>
                       {gitStatus.staged > 0 && <span className="text-emerald-400">+{gitStatus.staged}</span>}
                     </span>
@@ -3337,7 +3345,7 @@ export default function App() {
 
                   {/* Branch selector */}
                   <div className="relative">
-                    <button onClick={() => setShowBranchDropdown((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
+                    <button onClick={() => setShowBranchDropdown((v) => !v)} className="app-toolbar-btn flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
                       <GitBranchIcon /><span className="max-w-[100px] truncate">{currentBranch || "main"}</span><ChevronIcon open={showBranchDropdown} />
                     </button>
                     {showBranchDropdown && (
@@ -3360,7 +3368,7 @@ export default function App() {
                   </div>
 
                   {/* Diff button */}
-                  <button onClick={openDiffInSidebar} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="View changes">
+                  <button onClick={openDiffInSidebar} className="app-toolbar-btn grid h-7 w-7 place-items-center rounded-lg text-[var(--text-dim)] transition hover:text-[var(--text-muted)]" title="View changes">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 3v18M3 12h18" />
                     </svg>
@@ -3368,7 +3376,7 @@ export default function App() {
 
                   {/* Git actions dropdown */}
                   <div className="relative">
-                    <button onClick={() => setShowGitActions((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
+                    <button onClick={() => setShowGitActions((v) => !v)} className="app-toolbar-btn flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
                       </svg>
@@ -3407,7 +3415,7 @@ export default function App() {
                 /* No repo - show init button */
                 <button
                   onClick={() => handleGitAction("init")}
-                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
+                  className="app-toolbar-btn flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:text-[var(--text-muted)]"
                   title="Initialize git repository"
                 >
                   <GitBranchIcon />
@@ -3417,7 +3425,7 @@ export default function App() {
 
               {/* Git action feedback toast */}
               {gitActionFeedback && (
-                <span className="rounded-md bg-[var(--bg-active)] px-2 py-0.5 text-[10px] text-[var(--text-label)] animate-pulse">{gitActionFeedback}</span>
+                <span className="app-toolbar-chip animate-pulse rounded-lg px-2 py-1 text-[10px] text-[var(--text-label)]">{gitActionFeedback}</span>
               )}
             </div>
           </div>

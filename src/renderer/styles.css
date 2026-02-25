@@ -54,6 +54,11 @@
   --bg-diff-header: #161b2e;
   --bg-drag-highlight: #1a1f2e;
   --check-mark: #161616;
+  --toolbar-bg: #191919;
+  --toolbar-bg-strong: #151515;
+  --toolbar-chip: #202020;
+  --toolbar-highlight: rgba(255, 255, 255, 0.04);
+  --toolbar-shadow: rgba(0, 0, 0, 0.45);
 
   color-scheme: dark;
 }
@@ -102,6 +107,11 @@
   --bg-diff-header: #e8eaf6;
   --bg-drag-highlight: #dde3f0;
   --check-mark: #ffffff;
+  --toolbar-bg: #fafafa;
+  --toolbar-bg-strong: #f3f3f3;
+  --toolbar-chip: #ffffff;
+  --toolbar-highlight: rgba(255, 255, 255, 0.9);
+  --toolbar-shadow: rgba(15, 23, 42, 0.08);
 
   color-scheme: light;
 }
@@ -135,6 +145,25 @@ body,
 }
 .no-drag {
   -webkit-app-region: no-drag;
+}
+
+.app-toolbar {
+  background: linear-gradient(180deg, var(--toolbar-bg), var(--toolbar-bg-strong));
+  box-shadow: inset 0 1px 0 var(--toolbar-highlight), 0 10px 24px -20px var(--toolbar-shadow);
+}
+
+.app-toolbar-chip {
+  border: 1px solid var(--border-strong);
+  background: var(--toolbar-chip);
+}
+
+.app-toolbar-btn {
+  border: 1px solid var(--border-strong);
+  background: var(--toolbar-chip);
+}
+
+.app-toolbar-btn:hover {
+  background: var(--bg-active);
 }
 
 /* Light theme overrides for highlight.js */
