@@ -331,6 +331,8 @@ export interface SncodeApi {
   clearAllData: () => Promise<AppState>;
   /** Open Chromium DevTools */
   openDevTools: () => Promise<void>;
+  /** Return the directory path passed as a CLI argument (e.g. `sncode .`), or null */
+  getCliPath: () => Promise<string | null>;
   on: <T extends keyof AgentEventMap>(
     channel: T,
     listener: (payload: AgentEventMap[T]) => void

@@ -3765,19 +3765,48 @@ export default function App() {
   /* ── effects ── */
 
   useEffect(() => {
-    void Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta()]).then(([next, meta]) => {
+    void Promise.all([window.sncode.getState(), window.sncode.getThreadMessageMeta(), window.sncode.getCliPath()]).then(async ([next, meta, cliPath]) => {
       trackIpcPayload(next);
       trackIpcPayload(meta);
       setState({ ...next, messages: [] });
       setThreadMessageMetaRows(meta);
-      const p = next.projects[0];
-      if (p) {
-        setSelProjectId(p.id);
-        setExpandedProjects(new Set([p.id]));
-        const t = next.threads.find((th) => th.projectId === p.id);
+
+      // Normalize a file-system path for comparison: forward-slashes, no trailing slash.
+      const normPath = (p: string) => p.replace(/\\/g, "/").replace(/\/$/, "");
+
+      // If the app was launched with a directory argument (e.g. `sncode .`),
+      // find the matching project or create a new one, then select it.
+      if (cliPath) {
+        const existing = next.projects.find((p) => normPath(p.folderPath) === normPath(cliPath));
+        let proj = existing ?? null;
+        let st = next;
+        if (!proj) {
+          const name = cliPath.split(/[\\/]/).filter(Boolean).pop() || "Project";
+          proj = await window.sncode.createProject({ name, folderPath: cliPath });
+          const thread = await window.sncode.createThread({ projectId: proj.id, title: "New thread" });
+          const modelId = activeModelId(next.providers);
+          if (modelId) await window.sncode.updateThread({ threadId: thread.id, lastModel: modelId });
+          st = await window.sncode.getState();
+          trackIpcPayload(st);
+          setState({ ...st, messages: [] });
+        }
+        setSelProjectId(proj.id);
+        setExpandedProjects(new Set([proj.id]));
+        const t = st.threads.find((th) => th.projectId === proj!.id);
         if (t) {
           setSelThreadId(t.id);
           void refreshThreadMessages(t.id);
+        }
+      } else {
+        const p = next.projects[0];
+        if (p) {
+          setSelProjectId(p.id);
+          setExpandedProjects(new Set([p.id]));
+          const t = next.threads.find((th) => th.projectId === p.id);
+          if (t) {
+            setSelThreadId(t.id);
+            void refreshThreadMessages(t.id);
+          }
         }
       }
       setBooting(false);
