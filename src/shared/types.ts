@@ -331,6 +331,13 @@ export interface SncodeApi {
   clearAllData: () => Promise<AppState>;
   /** Open Chromium DevTools */
   openDevTools: () => Promise<void>;
+  /** Window controls (non-macOS custom title bar) */
+  platform: string;
+  windowMinimize: () => Promise<void>;
+  windowMaximize: () => Promise<void>;
+  windowClose: () => Promise<void>;
+  windowIsMaximized: () => Promise<boolean>;
+  onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => () => void;
   on: <T extends keyof AgentEventMap>(
     channel: T,
     listener: (payload: AgentEventMap[T]) => void

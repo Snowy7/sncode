@@ -44,6 +44,16 @@ const api: SncodeApi = {
   gitAction: (projectPath: string, action: string, args?: Record<string, string>): Promise<{ success: boolean; message: string }> => ipcRenderer.invoke("git:action", projectPath, action, args),
   clearAllData: () => ipcRenderer.invoke("app:clear-all-data"),
   openDevTools: () => ipcRenderer.invoke("app:open-devtools"),
+  platform: process.platform,
+  windowMinimize: () => ipcRenderer.invoke("window:minimize"),
+  windowMaximize: () => ipcRenderer.invoke("window:maximize"),
+  windowClose: () => ipcRenderer.invoke("window:close"),
+  windowIsMaximized: () => ipcRenderer.invoke("window:isMaximized"),
+  onWindowMaximizeChange: (listener: (isMaximized: boolean) => void) => {
+    const wrapped = (_event: unknown, isMaximized: boolean) => listener(isMaximized);
+    ipcRenderer.on("window:maximizeChanged", wrapped);
+    return () => ipcRenderer.removeListener("window:maximizeChanged", wrapped);
+  },
   on: <T extends keyof AgentEventMap>(channel: T, listener: (payload: AgentEventMap[T]) => void) => {
     const wrapped = (_event: unknown, payload: AgentEventMap[T]) => listener(payload);
     ipcRenderer.on(channel, wrapped);
