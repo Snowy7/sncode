@@ -83,6 +83,9 @@ const emptyState: AppState = {
   projectSkills: [],
 };
 
+// Platform is constant for the lifetime of the app
+const isNonMac = window.sncode.platform !== "darwin";
+
 type PermissionMode = "full" | "approve";
 type RightSidebarState = {
   type: "file" | "diff" | "subagent";
@@ -1800,6 +1803,42 @@ function SearchIcon() {
   );
 }
 
+function WindowControls({ isMaximized }: { isMaximized: boolean }) {
+  return (
+    <div className="no-drag flex h-full items-stretch ml-2">
+      <button
+        onClick={() => void window.sncode.windowMinimize()}
+        className="flex h-full w-10 items-center justify-center text-[var(--text-dim)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]"
+        title="Minimize"
+      >
+        <svg width="10" height="1" viewBox="0 0 10 1" fill="currentColor"><rect width="10" height="1" /></svg>
+      </button>
+      <button
+        onClick={() => void window.sncode.windowMaximize()}
+        className="flex h-full w-10 items-center justify-center text-[var(--text-dim)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]"
+        title={isMaximized ? "Restore" : "Maximize"}
+      >
+        {isMaximized ? (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1">
+            <rect x="2" y="0" width="8" height="8" /><rect x="0" y="2" width="8" height="8" fill="var(--bg-card)" /><rect x="0" y="2" width="8" height="8" />
+          </svg>
+        ) : (
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0" y="0" width="10" height="10" /></svg>
+        )}
+      </button>
+      <button
+        onClick={() => void window.sncode.windowClose()}
+        className="group flex h-full w-10 items-center justify-center text-[var(--text-dim)] transition hover:bg-red-600 hover:text-white"
+        title="Close"
+      >
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <line x1="1" y1="1" x2="9" y2="9" /><line x1="9" y1="1" x2="1" y2="9" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function SearchBar({ messages, onClose, onHighlight }: { messages: ThreadMessage[]; onClose: () => void; onHighlight: (q: string) => void }) {
   const [query, setQuery] = useState("");
   const [matchIndex, setMatchIndex] = useState(0);
@@ -3513,6 +3552,7 @@ export default function App() {
   const [pendingImages, setPendingImages] = useState<ImageAttachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isMaximized, setIsMaximized] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<SidebarContextMenu | null>(null);
   const [showFileTree, setShowFileTree] = useState(false);
@@ -3585,6 +3625,12 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!isNonMac) return;
+    void window.sncode.windowIsMaximized().then(setIsMaximized);
+    return window.sncode.onWindowMaximizeChange(setIsMaximized);
+  }, []);
 
   useEffect(() => {
     selThreadIdRef.current = selThreadId;
@@ -4588,7 +4634,7 @@ export default function App() {
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
 
           {/* Top bar */}
-          <div className="drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
+          <div className={`drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[var(--border)] pl-4${isNonMac ? "" : " pr-4"}`}>
             <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
               {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
               <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
@@ -4733,6 +4779,7 @@ export default function App() {
                 <span className="rounded-md bg-[var(--bg-active)] px-2 py-0.5 text-[10px] text-[var(--text-label)] animate-pulse">{gitActionFeedback}</span>
               )}
             </div>
+            {isNonMac && <WindowControls isMaximized={isMaximized} />}
           </div>
 
           {/* Search bar */}

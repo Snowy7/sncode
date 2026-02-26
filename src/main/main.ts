@@ -256,6 +256,7 @@ function sanitizeToolArgsForUi(name: string, args?: Record<string, unknown>): Re
 function createWindow() {
   Menu.setApplicationMenu(null);
 
+  const isMac = process.platform === "darwin";
   mainWindow = new BrowserWindow({
     width: 1560,
     height: 980,
@@ -263,8 +264,9 @@ function createWindow() {
     minHeight: 720,
     title: "SnCode",
     backgroundColor: "#141414",
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 14, y: 14 },
+    ...(isMac
+      ? { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 14, y: 14 } }
+      : { frame: false }),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -272,6 +274,13 @@ function createWindow() {
       sandbox: true,
       webSecurity: true
     }
+  });
+
+  mainWindow.on("maximize", () => {
+    mainWindow?.webContents.send("window:maximizeChanged", true);
+  });
+  mainWindow.on("unmaximize", () => {
+    mainWindow?.webContents.send("window:maximizeChanged", false);
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -1148,6 +1157,14 @@ function registerIpc() {
     const parsed = sendMessageInputSchema.parse(payload);
     return sendMessageInternal(parsed);
   });
+
+  ipcMain.handle("window:minimize", () => { mainWindow?.minimize(); });
+  ipcMain.handle("window:maximize", () => {
+    if (mainWindow?.isMaximized()) mainWindow.restore();
+    else mainWindow?.maximize();
+  });
+  ipcMain.handle("window:close", () => { mainWindow?.close(); });
+  ipcMain.handle("window:isMaximized", () => mainWindow?.isMaximized() ?? false);
 }
 
 app.whenReady().then(() => {
