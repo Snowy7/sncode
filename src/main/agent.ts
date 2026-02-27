@@ -158,6 +158,19 @@ function buildRequiredIndexes(history: ThreadMessage[]): Set<number> {
   return required;
 }
 
+function summarizeHistoryToolMessage(msg: ThreadMessage): string | undefined {
+  const toolName = typeof msg.metadata?.toolName === "string" ? msg.metadata.toolName : "tool";
+  const toolDetail = typeof msg.metadata?.toolDetail === "string" ? msg.metadata.toolDetail : "";
+  const content = typeof msg.content === "string" ? msg.content.trim() : "";
+  if (!content && !toolDetail) return undefined;
+
+  const header = toolDetail ? `[Tool output: ${toolName} | ${toolDetail}]` : `[Tool output: ${toolName}]`;
+  const maxToolHistoryChars = 2500;
+  const truncated =
+    content.length > maxToolHistoryChars ? `${content.slice(0, maxToolHistoryChars)}... [truncated]` : content;
+  return truncated ? `${header}\n${truncated}` : header;
+}
+
 function compactHistoryToBudget(history: ThreadMessage[], historyBudget: number): ThreadMessage[] {
   if (history.length <= 2) return history;
   const budget = Math.max(MIN_HISTORY_BUDGET, historyBudget);
@@ -1378,6 +1391,11 @@ function toAnthropicMessages(history: ThreadMessage[]): Anthropic.MessageParam[]
       }
     } else if (msg.role === "assistant") {
       messages.push({ role: "assistant", content: msg.content });
+    } else if (msg.role === "tool") {
+      const toolSummary = summarizeHistoryToolMessage(msg);
+      if (toolSummary) {
+        messages.push({ role: "user", content: toolSummary });
+      }
     }
   }
   return messages;
@@ -1409,6 +1427,11 @@ function toOpenAIMessages(history: ThreadMessage[], systemPrompt: string): OpenA
       }
     } else if (msg.role === "assistant") {
       messages.push({ role: "assistant", content: msg.content });
+    } else if (msg.role === "tool") {
+      const toolSummary = summarizeHistoryToolMessage(msg);
+      if (toolSummary) {
+        messages.push({ role: "user", content: toolSummary });
+      }
     }
   }
   return messages;
@@ -1452,6 +1475,11 @@ function toResponsesInput(history: ThreadMessage[]): any[] {
       }
     } else if (msg.role === "assistant") {
       items.push({ role: "assistant", content: msg.content });
+    } else if (msg.role === "tool") {
+      const toolSummary = summarizeHistoryToolMessage(msg);
+      if (toolSummary) {
+        items.push({ role: "user", content: toolSummary });
+      }
     }
   }
   return items;

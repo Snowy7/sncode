@@ -182,8 +182,8 @@ function estimateContextTokensForMessage(msg: ThreadMessage): number {
 }
 
 const CONTEXT_FALLBACK_WINDOW = 32_768;
-const CONTEXT_COMPACT_TRIGGER_RATIO = 0.92;
-const CONTEXT_COMPACT_TARGET_RATIO = 0.67;
+const CONTEXT_COMPACT_TRIGGER_RATIO = 0.86;
+const CONTEXT_COMPACT_TARGET_RATIO = 0.58;
 const CONTEXT_MIN_HISTORY_BUDGET = 256;
 const CONTEXT_SYSTEM_PROMPT_ESTIMATE = 1_600;
 
@@ -225,6 +225,14 @@ function compactHistoryTokenEstimate(
     estimatedInputTokens: CONTEXT_SYSTEM_PROMPT_ESTIMATE + compactedHistoryTokens,
     usedCompaction: true,
   };
+}
+
+function getResolvedModelContextWindow(modelId: string | undefined, activeProvider?: ProviderConfig) {
+  const byModel = modelId ? modelEntryById(modelId) : undefined;
+  if (byModel?.contextWindow) return byModel.contextWindow;
+  if (activeProvider?.id === "anthropic") return 200_000;
+  if (activeProvider?.id === "codex") return 400_000;
+  return CONTEXT_FALLBACK_WINDOW;
 }
 
 function normalizeToolName(name: string): string {
@@ -3685,9 +3693,9 @@ export default function App() {
 
     // Get active model for pricing + context window
     const activeProvider = state.providers.find((p) => p.enabled);
-    const modelId = selThread?.lastModel || activeProvider?.model || "";
-    const modelEntry = modelEntryById(modelId);
-    const contextWindow = modelEntry?.contextWindow || CONTEXT_FALLBACK_WINDOW;
+    const threadModelId = selThread?.lastModel;
+    const modelId = (threadModelId && modelEntryById(threadModelId)) ? threadModelId : activeProvider?.model || "";
+    const contextWindow = getResolvedModelContextWindow(modelId, activeProvider);
     const reservedOutputTokens = state.settings.maxTokens || 0;
     const history = toChatHistory(threadMessages);
     const historyInputTokens = estimateHistoryTokens(history);
