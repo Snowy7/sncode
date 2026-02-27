@@ -4,6 +4,8 @@
 !include "StrFunc.nsh"
 ${StrStr}
 ${StrRep}
+${UnStrStr}
+${UnStrRep}
 
 !macro customHeader
   ; ── Welcome page ──
@@ -55,12 +57,12 @@ ${StrRep}
 ; ── Remove install directory from user PATH on uninstall ──
 !macro customUnInstall
   ReadRegStr $0 HKCU "Environment" "PATH"
-  ${StrStr} $1 "$0" "$INSTDIR"
+  ${UnStrStr} $1 "$0" "$INSTDIR"
   StrCmp $1 "" path_clean 0
     ; Simple removal: replace $INSTDIR; or ;$INSTDIR with empty string
-    ${StrRep} $2 "$0" ";$INSTDIR" ""
-    ${StrRep} $3 "$2" "$INSTDIR;" ""
-    ${StrRep} $4 "$3" "$INSTDIR"  ""
+    ${UnStrRep} $2 "$0" ";$INSTDIR" ""
+    ${UnStrRep} $3 "$2" "$INSTDIR;" ""
+    ${UnStrRep} $4 "$3" "$INSTDIR"  ""
     WriteRegExpandStr HKCU "Environment" "PATH" "$4"
     SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=500
   path_clean:
