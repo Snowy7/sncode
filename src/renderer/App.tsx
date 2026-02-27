@@ -4616,167 +4616,151 @@ export default function App() {
       <main className="flex min-h-0 min-w-0 flex-1 flex-col py-2 pr-2">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl" style={{ border: "1px solid var(--border)", background: "var(--bg-card)" }}>
 
-          {/* App shell header */}
-          <div className="border-b border-[var(--border)]">
-            <div className="drag-region flex h-10 shrink-0 items-center gap-3 border-b border-[var(--border-subtle)] px-4">
-              <div className="no-drag flex min-w-0 items-center gap-2">
-                <span className="text-[14px] font-semibold tracking-tight"><span className="text-[var(--brand-sn)]">Sn</span><span className="text-[var(--brand-code)]">Code</span></span>
-                <span className="truncate text-[12px] text-[var(--text-dim)]">{selThread?.title ?? "No thread selected"}</span>
-                {selProject && <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
-              </div>
-              <button
-                onClick={() => setShowSettings(true)}
-                className="no-drag ml-auto grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-elevated)] hover:text-[var(--text-muted)]"
-                title="Settings"
-              >
-                <GearIcon />
-              </button>
+          {/* Top bar */}
+          <div className="drag-region flex h-11 shrink-0 items-center gap-3 border-b border-[var(--border)] px-4">
+            <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
+              {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
+              <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
+              {selProject && <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
             </div>
-            <div className="drag-region flex h-11 shrink-0 items-center gap-3 px-4">
-              <div className="no-drag flex min-w-0 flex-1 items-center gap-2">
-                {isBusy && <div className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />}
-                <span className="truncate text-[13px] font-medium text-[var(--text-heading)]">{selThread?.title ?? "Select a thread"}</span>
-                {selProject && <span className="shrink-0 rounded border border-[var(--border)] bg-[var(--bg-elevated)] px-1.5 py-px text-[10px] text-[var(--text-dim)]">{selProject.name}</span>}
-              </div>
-              <div className="no-drag flex shrink-0 items-center gap-1.5">
-                <button onClick={() => setShowSearch((v) => !v)} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="Search (Ctrl+F)"><SearchIcon /></button>
-                {selProject && preferredEditor && (
+            <div className="no-drag flex shrink-0 items-center gap-1.5">
+              <button onClick={() => setShowSearch((v) => !v)} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="Search (Ctrl+F)"><SearchIcon /></button>
+              {selProject && preferredEditor && (
+                <div className="relative">
+                  <div className="flex items-center overflow-hidden rounded-md border border-[var(--border-subtle)]">
+                    <button
+                      onClick={() => { void openProjectInEditor(preferredEditor.id); }}
+                      className="flex h-7 items-center gap-1.5 px-2 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
+                      title={`Open in ${preferredEditor.label}`}
+                    >
+                      {preferredEditor.id === "vscode" ? <VSCodeIcon /> : <CursorIcon />}
+                      <span className="hidden md:inline">{preferredEditor.label}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowEditorPicker((v) => !v)}
+                      className="grid h-7 w-6 place-items-center border-l border-[var(--border-subtle)] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
+                      title="Choose editor"
+                    >
+                      <ChevronIcon open={showEditorPicker} />
+                    </button>
+                  </div>
+                  {showEditorPicker && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowEditorPicker(false)} />
+                      <div className="absolute right-0 top-full z-20 mt-1 min-w-[150px] overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
+                        {installedEditors.map((editor) => (
+                          <button
+                            key={editor.id}
+                            onClick={() => {
+                              setPreferredEditorId(editor.id);
+                              setShowEditorPicker(false);
+                            }}
+                            className={`flex w-full items-center gap-2 px-3 py-[6px] text-left text-[11px] transition hover:bg-[var(--bg-active)] ${editor.id === preferredEditor.id ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
+                          >
+                            {editor.id === "vscode" ? <VSCodeIcon /> : <CursorIcon />}
+                            <span>{editor.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {selProject && gitStatus.isRepo ? (
+                <>
+                  {/* Change indicators */}
+                  {(gitStatus.changes > 0 || gitStatus.staged > 0) && (
+                    <span className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]">
+                      <span className="text-amber-400">{gitStatus.changes}M</span>
+                      {gitStatus.staged > 0 && <span className="text-emerald-400">+{gitStatus.staged}</span>}
+                    </span>
+                  )}
+
+                  {/* Branch selector */}
                   <div className="relative">
-                    <div className="flex items-center overflow-hidden rounded-md border border-[var(--border-subtle)]">
-                      <button
-                        onClick={() => { void openProjectInEditor(preferredEditor.id); }}
-                        className="flex h-7 items-center gap-1.5 px-2 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
-                        title={`Open in ${preferredEditor.label}`}
-                      >
-                        {preferredEditor.id === "vscode" ? <VSCodeIcon /> : <CursorIcon />}
-                        <span className="hidden md:inline">{preferredEditor.label}</span>
-                      </button>
-                      <button
-                        onClick={() => setShowEditorPicker((v) => !v)}
-                        className="grid h-7 w-6 place-items-center border-l border-[var(--border-subtle)] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
-                        title="Choose editor"
-                      >
-                        <ChevronIcon open={showEditorPicker} />
-                      </button>
-                    </div>
-                    {showEditorPicker && (
+                    <button onClick={() => setShowBranchDropdown((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
+                      <GitBranchIcon /><span className="max-w-[100px] truncate">{currentBranch || "main"}</span><ChevronIcon open={showBranchDropdown} />
+                    </button>
+                    {showBranchDropdown && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowEditorPicker(false)} />
-                        <div className="absolute right-0 top-full z-20 mt-1 min-w-[150px] overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
-                          {installedEditors.map((editor) => (
+                        <div className="fixed inset-0 z-10" onClick={() => setShowBranchDropdown(false)} />
+                        <div className="absolute right-0 top-full z-20 mt-1 max-h-48 w-44 overflow-auto rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
+                          {gitBranches.map((branch) => (
                             <button
-                              key={editor.id}
-                              onClick={() => {
-                                setPreferredEditorId(editor.id);
-                                setShowEditorPicker(false);
-                              }}
-                              className={`flex w-full items-center gap-2 px-3 py-[6px] text-left text-[11px] transition hover:bg-[var(--bg-active)] ${editor.id === preferredEditor.id ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
+                              key={branch}
+                              onClick={() => { void handleGitAction("checkout", { branch }); setShowBranchDropdown(false); }}
+                              className={`flex w-full items-center px-3 py-[5px] text-left text-[11px] transition hover:bg-[var(--bg-active)] ${branch === currentBranch ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
                             >
-                              {editor.id === "vscode" ? <VSCodeIcon /> : <CursorIcon />}
-                              <span>{editor.label}</span>
+                              {branch === currentBranch && <span className="mr-1.5 text-emerald-400">*</span>}
+                              {branch}
                             </button>
                           ))}
                         </div>
                       </>
                     )}
                   </div>
-                )}
 
-                {selProject && gitStatus.isRepo ? (
-                  <>
-                    {/* Change indicators */}
-                    {(gitStatus.changes > 0 || gitStatus.staged > 0) && (
-                      <span className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px]">
-                        <span className="text-amber-400">{gitStatus.changes}M</span>
-                        {gitStatus.staged > 0 && <span className="text-emerald-400">+{gitStatus.staged}</span>}
-                      </span>
-                    )}
+                  {/* Diff button */}
+                  <button onClick={openDiffInSidebar} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="View changes">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 3v18M3 12h18" />
+                    </svg>
+                  </button>
 
-                    {/* Branch selector */}
-                    <div className="relative">
-                      <button onClick={() => setShowBranchDropdown((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
-                        <GitBranchIcon /><span className="max-w-[100px] truncate">{currentBranch || "main"}</span><ChevronIcon open={showBranchDropdown} />
-                      </button>
-                      {showBranchDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowBranchDropdown(false)} />
-                          <div className="absolute right-0 top-full z-20 mt-1 max-h-48 w-44 overflow-auto rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
-                            {gitBranches.map((branch) => (
-                              <button
-                                key={branch}
-                                onClick={() => { void handleGitAction("checkout", { branch }); setShowBranchDropdown(false); }}
-                                className={`flex w-full items-center px-3 py-[5px] text-left text-[11px] transition hover:bg-[var(--bg-active)] ${branch === currentBranch ? "text-[var(--text-primary)]" : "text-[var(--text-muted)]"}`}
-                              >
-                                {branch === currentBranch && <span className="mr-1.5 text-emerald-400">*</span>}
-                                {branch}
-                              </button>
-                            ))}
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    {/* Diff button */}
-                    <button onClick={openDiffInSidebar} className="grid h-7 w-7 place-items-center rounded-md text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]" title="View changes">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 3v18M3 12h18" />
+                  {/* Git actions dropdown */}
+                  <div className="relative">
+                    <button onClick={() => setShowGitActions((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
                       </svg>
                     </button>
+                    {showGitActions && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowGitActions(false)} />
+                        <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
+                          <button onClick={() => { setShowCommitModal(true); setShowGitActions(false); }} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4" /><line x1="1.05" y1="12" x2="7" y2="12" /><line x1="17.01" y1="12" x2="22.96" y2="12" /></svg>
+                            Commit
+                          </button>
+                          <button onClick={() => handleGitAction("pull")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
+                            Pull
+                          </button>
+                          <button onClick={() => handleGitAction("push")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 7 12 3 8 7" /><line x1="12" y1="3" x2="12" y2="15" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
+                            Push
+                          </button>
+                          <div className="mx-2 my-1 h-px bg-[var(--bg-active)]" />
+                          <button onClick={() => handleGitAction("stash")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
+                            Stash
+                          </button>
+                          <button onClick={() => handleGitAction("stash-pop")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="7.5 4.21 12 6.81 16.5 4.21" /></svg>
+                            Stash Pop
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </>
+              ) : selProject ? (
+                /* No repo - show init button */
+                <button
+                  onClick={() => handleGitAction("init")}
+                  className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
+                  title="Initialize git repository"
+                >
+                  <GitBranchIcon />
+                  <span>Init repo</span>
+                </button>
+              ) : null}
 
-                    {/* Git actions dropdown */}
-                    <div className="relative">
-                      <button onClick={() => setShowGitActions((v) => !v)} className="flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" />
-                        </svg>
-                      </button>
-                      {showGitActions && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowGitActions(false)} />
-                          <div className="absolute right-0 top-full z-20 mt-1 w-48 overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-elevated)] py-1 shadow-xl shadow-black/40">
-                            <button onClick={() => { setShowCommitModal(true); setShowGitActions(false); }} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="4" /><line x1="1.05" y1="12" x2="7" y2="12" /><line x1="17.01" y1="12" x2="22.96" y2="12" /></svg>
-                              Commit
-                            </button>
-                            <button onClick={() => handleGitAction("pull")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="8 17 12 21 16 17" /><line x1="12" y1="12" x2="12" y2="21" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
-                              Pull
-                            </button>
-                            <button onClick={() => handleGitAction("push")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-label)] transition hover:bg-[var(--bg-active)]">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="16 7 12 3 8 7" /><line x1="12" y1="3" x2="12" y2="15" /><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29" /></svg>
-                              Push
-                            </button>
-                            <div className="mx-2 my-1 h-px bg-[var(--bg-active)]" />
-                            <button onClick={() => handleGitAction("stash")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
-                              Stash
-                            </button>
-                            <button onClick={() => handleGitAction("stash-pop")} className="flex w-full items-center gap-2 px-3 py-[6px] text-left text-[12px] text-[var(--text-muted)] transition hover:bg-[var(--bg-active)]">
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="7.5 4.21 12 6.81 16.5 4.21" /></svg>
-                              Stash Pop
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </>
-                ) : selProject ? (
-                  /* No repo - show init button */
-                  <button
-                    onClick={() => handleGitAction("init")}
-                    className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] text-[var(--text-dim)] transition hover:bg-[var(--bg-user-bubble)] hover:text-[var(--text-muted)]"
-                    title="Initialize git repository"
-                  >
-                    <GitBranchIcon />
-                    <span>Init repo</span>
-                  </button>
-                ) : null}
-
-                {/* Git action feedback toast */}
-                {gitActionFeedback && (
-                  <span className="rounded-md bg-[var(--bg-active)] px-2 py-0.5 text-[10px] text-[var(--text-label)] animate-pulse">{gitActionFeedback}</span>
-                )}
-              </div>
+              {/* Git action feedback toast */}
+              {gitActionFeedback && (
+                <span className="rounded-md bg-[var(--bg-active)] px-2 py-0.5 text-[10px] text-[var(--text-label)] animate-pulse">{gitActionFeedback}</span>
+              )}
             </div>
           </div>
 
