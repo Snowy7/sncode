@@ -15,6 +15,7 @@ import { discoverSkills, loadSkillContent, installSkill, deleteSkill } from "./s
 import { Store } from "./store";
 import { runCodexAppServerTurn } from "./codex-app-server";
 import { mcpManager } from "./mcp";
+import { registerCliCommand } from "./cli-installer";
 import {
   agentSettingsSchema,
   newProjectInputSchema,
@@ -31,6 +32,33 @@ import { smallestAvailableModelId, providerForModelId } from "../shared/models";
 const isDev = !app.isPackaged;
 const store = new Store();
 const runControllers = new Map<string, AbortController>();
+
+/**
+ * Resolve the directory path passed as a CLI argument, e.g. `sncode .` or
+ * `sncode /path/to/project`.  Returns null when no valid directory was given.
+ *
+ * Electron passes its own flags and, in the packaged app, the executable path
+ * itself as argv[0], so we look for the first positional argument that is an
+ * existing directory.
+ */
+function resolveCliPath(): string | null {
+  // In packaged apps process.argv[0] is the executable; skip flags (--*).
+  const args = process.argv.slice(app.isPackaged ? 1 : 2);
+  for (const arg of args) {
+    if (arg.startsWith("-")) continue;
+    try {
+      const resolved = path.resolve(arg);
+      if (fs.existsSync(resolved) && fs.statSync(resolved).isDirectory()) {
+        return resolved;
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return null;
+}
+
+const cliPath = resolveCliPath();
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -665,6 +693,7 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
 
 function registerIpc() {
   ipcMain.handle("state:get", () => toRendererState(store.getState()));
+  ipcMain.handle("app:cli-path", () => cliPath);
   ipcMain.handle("thread:messages", (_event, threadId: unknown) => {
     const id = String(threadId || "");
     if (!id) return [];
@@ -1154,6 +1183,7 @@ app.whenReady().then(() => {
   store.load();
   registerIpc();
   createWindow();
+  registerCliCommand();
 });
 
 app.on("window-all-closed", () => {

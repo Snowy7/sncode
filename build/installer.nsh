@@ -26,3 +26,38 @@
     !define MUI_ABORTWARNING_TEXT "Are you sure you want to cancel the SnCode installation?"
   !endif
 !macroend
+
+; ── Add install directory to user PATH so `sncode` works from any terminal ──
+!macro customInstall
+  ; Read the current user PATH
+  ReadRegStr $0 HKCU "Environment" "PATH"
+
+  ; Only append if the install dir is not already present
+  ${StrContains} $1 "$INSTDIR" "$0"
+  StrCmp $1 "" 0 path_already_set
+    ; Append install dir to user PATH
+    StrCmp $0 "" 0 has_existing_path
+      WriteRegExpandStr HKCU "Environment" "PATH" "$INSTDIR"
+      Goto path_done
+    has_existing_path:
+      WriteRegExpandStr HKCU "Environment" "PATH" "$0;$INSTDIR"
+  path_already_set:
+  path_done:
+
+  ; Broadcast the environment change so open terminals pick it up
+  SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=500
+!macroend
+
+; ── Remove install directory from user PATH on uninstall ──
+!macro customUnInstall
+  ReadRegStr $0 HKCU "Environment" "PATH"
+  ${StrContains} $1 "$INSTDIR" "$0"
+  StrCmp $1 "" path_clean 0
+    ; Simple removal: replace $INSTDIR; or ;$INSTDIR with empty string
+    ${StrRep} $2 "$0" ";$INSTDIR" ""
+    ${StrRep} $3 "$2" "$INSTDIR;" ""
+    ${StrRep} $4 "$3" "$INSTDIR"  ""
+    WriteRegExpandStr HKCU "Environment" "PATH" "$4"
+    SendMessage ${HWND_BROADCAST} ${WM_WININICHANGE} 0 "STR:Environment" /TIMEOUT=500
+  path_clean:
+!macroend
