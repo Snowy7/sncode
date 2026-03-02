@@ -104,6 +104,7 @@ export class Store {
         projectId: thread.projectId,
         title: thread.title,
         codexThreadId: (thread as Thread).codexThreadId,
+        anthropicSessionId: (thread as Thread).anthropicSessionId,
         lastModel: (thread as Thread).lastModel,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt
@@ -311,6 +312,7 @@ export class Store {
       projectId: input.projectId,
       title: input.title,
       codexThreadId: undefined,
+      anthropicSessionId: undefined,
       lastModel: undefined,
       createdAt: now(),
       updatedAt: now()
@@ -328,11 +330,12 @@ export class Store {
     this.persist();
   }
 
-  updateThread(threadId: string, updates: Partial<Pick<Thread, "title" | "codexThreadId" | "lastModel">>): Thread | undefined {
+  updateThread(threadId: string, updates: Partial<Pick<Thread, "title" | "codexThreadId" | "anthropicSessionId" | "lastModel">>): Thread | undefined {
     const thread = this.state.threads.find((t) => t.id === threadId);
     if (!thread) return undefined;
     if (updates.title !== undefined) thread.title = updates.title;
     if (updates.codexThreadId !== undefined) thread.codexThreadId = updates.codexThreadId;
+    if (updates.anthropicSessionId !== undefined) thread.anthropicSessionId = updates.anthropicSessionId;
     if (updates.lastModel !== undefined) thread.lastModel = updates.lastModel;
     thread.updatedAt = now();
     this.persist();
@@ -353,32 +356,38 @@ export class Store {
 
   compactThread(threadId: string): { compacted: boolean; removed: number } {
     const threadMessages = this.state.messages.filter((m) => m.threadId === threadId);
-    const KEEP_RECENT = 32;
-    if (threadMessages.length <= KEEP_RECENT) {
+    const MIN_MESSAGES_TO_COMPACT = 12;
+    if (threadMessages.length <= MIN_MESSAGES_TO_COMPACT) {
       return { compacted: false, removed: 0 };
     }
 
-    const removed = threadMessages.slice(0, threadMessages.length - KEEP_RECENT);
-    const kept = threadMessages.slice(threadMessages.length - KEEP_RECENT);
+    const keepRecent = Math.max(8, Math.min(24, Math.floor(threadMessages.length * 0.4)));
+    const removed = threadMessages.slice(0, threadMessages.length - keepRecent);
+    const kept = threadMessages.slice(threadMessages.length - keepRecent);
     if (removed.length === 0) return { compacted: false, removed: 0 };
 
-    let summary = `[Context compacted manually at ${new Date().toISOString()}]\nSummary of earlier conversation:\n`;
+    let summary = `[Context compacted manually at ${new Date().toISOString()}]\n`;
+    summary += `Removed ${removed.length} earlier chat message${removed.length === 1 ? "" : "s"}.\n`;
+    summary += "Compacted message transcript:\n";
     let used = summary.length;
-    const MAX_SUMMARY_CHARS = 7000;
-    let lineCount = 0;
-    for (const msg of removed) {
+    const MAX_SUMMARY_CHARS = 220_000;
+    let included = 0;
+    for (let i = 0; i < removed.length; i += 1) {
+      const msg = removed[i];
       if (msg.role !== "user" && msg.role !== "assistant") continue;
-      const snippet = msg.content.replace(/\s+/g, " ").trim();
-      if (!snippet) continue;
-      const clipped = snippet.length > 260 ? `${snippet.slice(0, 260)}...` : snippet;
-      const line = `- ${msg.role}: ${clipped}\n`;
-      if (used + line.length > MAX_SUMMARY_CHARS) break;
-      summary += line;
-      used += line.length;
-      lineCount += 1;
+      const content = (msg.content || "").trim();
+      const imageNote = msg.images?.length ? `\n[images: ${msg.images.length}]` : "";
+      const block = `\n---\n[${msg.createdAt}] ${msg.role}\n${content || "[empty]"}${imageNote}\n`;
+      if (used + block.length > MAX_SUMMARY_CHARS) {
+        summary += `\n...[truncated ${removed.length - i} message${removed.length - i === 1 ? "" : "s"} to keep UI responsive]\n`;
+        break;
+      }
+      summary += block;
+      used += block.length;
+      included += 1;
     }
-    if (lineCount === 0) {
-      summary += `- Removed ${removed.length} earlier messages.\n`;
+    if (included === 0) {
+      summary += "[No user/assistant messages were eligible for transcript output]\n";
     }
 
     const removedIds = new Set(removed.map((m) => m.id));
@@ -389,7 +398,7 @@ export class Store {
       role: "assistant",
       content: summary,
       createdAt: now(),
-      metadata: { toolName: "compact_history", toolDetail: `Removed ${removed.length} old messages` },
+      metadata: { toolName: "compact_history", toolDetail: `Removed ${removed.length} old messages`, compactionLog: true },
     };
 
     const nextMessages: ThreadMessage[] = [];

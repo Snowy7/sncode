@@ -32,6 +32,43 @@ import { smallestAvailableModelId, providerForModelId } from "../shared/models";
 const isDev = !app.isPackaged;
 const store = new Store();
 const runControllers = new Map<string, AbortController>();
+type RunAbortReason = "cancel" | "handoff";
+const runAbortReasons = new Map<string, RunAbortReason>();
+
+function isEpipeError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const rec = error as Record<string, unknown>;
+  if (rec.code === "EPIPE") return true;
+  const msg = typeof rec.message === "string" ? rec.message : "";
+  return msg.includes("EPIPE");
+}
+
+function installEpipeGuards() {
+  // Prevent production crash dialogs when a subprocess/stdout pipe closes unexpectedly.
+  process.stdout?.on?.("error", (err) => {
+    if (isEpipeError(err)) return;
+    setImmediate(() => {
+      throw err;
+    });
+  });
+  process.stderr?.on?.("error", (err) => {
+    if (isEpipeError(err)) return;
+    setImmediate(() => {
+      throw err;
+    });
+  });
+
+  const onUncaughtException = (err: unknown) => {
+    if (isEpipeError(err)) return;
+    process.off("uncaughtException", onUncaughtException);
+    setImmediate(() => {
+      throw err;
+    });
+  };
+  process.on("uncaughtException", onUncaughtException);
+}
+
+installEpipeGuards();
 
 /**
  * Resolve the directory path passed as a CLI argument, e.g. `sncode .` or
@@ -277,6 +314,24 @@ function sanitizeToolArgsForUi(name: string, args?: Record<string, unknown>): Re
     const patchVal = safePreviewString(readStringArg(args, ["patch", "diff", "changes", "content"]));
     if (!patchVal) return undefined;
     return { patch: patchVal };
+  }
+  if (tool === "update_plan") {
+    const explanationVal = safePreviewString(readStringArg(args, ["explanation"]), 8_000);
+    const rawPlan = Array.isArray(args.plan) ? args.plan : [];
+    const plan: Array<{ step: string; status: "pending" | "in_progress" | "completed" }> = [];
+    for (const item of rawPlan) {
+      if (!item || typeof item !== "object") continue;
+      const rec = item as Record<string, unknown>;
+      const step = safePreviewString(rec.step, 800);
+      if (!step) continue;
+      const rawStatus = String(rec.status || "pending");
+      const status: "pending" | "in_progress" | "completed" =
+        rawStatus === "in_progress" || rawStatus === "completed" ? rawStatus : "pending";
+      plan.push({ step, status });
+      if (plan.length >= 40) break;
+    }
+    if (!explanationVal && plan.length === 0) return undefined;
+    return { explanation: explanationVal, plan };
   }
   return undefined;
 }
@@ -540,6 +595,7 @@ interface UnifiedProviderRunInput {
 interface UnifiedProviderRunOutcome {
   status: "completed" | "interrupted";
   codexThreadId?: string;
+  anthropicSessionId?: string;
 }
 
 async function runUnifiedProviderTurn(input: UnifiedProviderRunInput): Promise<UnifiedProviderRunOutcome> {
@@ -598,6 +654,7 @@ async function runUnifiedProviderTurn(input: UnifiedProviderRunInput): Promise<U
     providers,
     history: input.history,
     projectRoot: input.projectRoot,
+    anthropicSessionId: store.getThread(input.threadId)?.anthropicSessionId,
     settings: store.getSettings(),
     abortSignal: input.abortSignal,
     getCredential: getProviderCredential,
@@ -613,8 +670,7 @@ async function runUnifiedProviderTurn(input: UnifiedProviderRunInput): Promise<U
     },
   });
 
-  input.ui.onText(result.text, { inputTokens: result.inputTokens, outputTokens: result.outputTokens });
-  return { status: "completed" };
+  return { status: "completed", anthropicSessionId: result.anthropicSessionId };
 }
 
 async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema>) {
@@ -641,6 +697,7 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
 
   const immediateState = toRendererState(store.getState());
   const controller = new AbortController();
+  runAbortReasons.delete(parsed.threadId);
   runControllers.set(parsed.threadId, controller);
   const ui = createThreadRunUiBridge(parsed.threadId);
   ui.onStatus("Running agent");
@@ -662,7 +719,14 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
       if (outcome.codexThreadId && store.getThread(parsed.threadId)?.codexThreadId !== outcome.codexThreadId) {
         store.updateThread(parsed.threadId, { codexThreadId: outcome.codexThreadId });
       }
+      if (outcome.anthropicSessionId && store.getThread(parsed.threadId)?.anthropicSessionId !== outcome.anthropicSessionId) {
+        store.updateThread(parsed.threadId, { anthropicSessionId: outcome.anthropicSessionId });
+      }
       if (outcome.status === "interrupted") {
+        const reason = runAbortReasons.get(parsed.threadId);
+        if (reason === "handoff") {
+          return;
+        }
         ui.onCancelled();
         return;
       }
@@ -679,12 +743,21 @@ async function sendMessageInternal(parsed: z.infer<typeof sendMessageInputSchema
         if (apiErr.code) detail += ` [${apiErr.code}]`;
       }
       console.error("[Agent error]", error);
+      const reason = runAbortReasons.get(parsed.threadId);
+      if (reason === "handoff" && detail.includes("Run cancelled")) {
+        return;
+      }
       const status = detail.includes("Run cancelled") ? "cancelled" : "error";
       ui.onText(`Agent failed: ${detail}`, { isError: true });
       if (status === "cancelled") ui.onCancelled();
       else emit("agent:status", { threadId: parsed.threadId, status, detail });
     } finally {
       runControllers.delete(parsed.threadId);
+      const reason = runAbortReasons.get(parsed.threadId);
+      runAbortReasons.delete(parsed.threadId);
+      if (reason === "handoff") {
+        emit("agent:handoff", { threadId: parsed.threadId });
+      }
     }
   })();
 
@@ -728,8 +801,10 @@ function registerIpc() {
     for (const thread of threads) {
       const controller = runControllers.get(thread.id);
       if (controller) {
+        runAbortReasons.set(thread.id, "cancel");
         controller.abort();
         runControllers.delete(thread.id);
+        runAbortReasons.delete(thread.id);
       }
     }
     store.deleteProject(id);
@@ -774,6 +849,7 @@ function registerIpc() {
     const updated = store.updateThread(parsed.threadId, {
       title: parsed.title,
       codexThreadId: parsed.codexThreadId,
+      anthropicSessionId: parsed.anthropicSessionId,
       lastModel: parsed.lastModel,
     });
     return updated ?? null;
@@ -796,8 +872,10 @@ function registerIpc() {
     // Cancel any running agent for this thread
     const controller = runControllers.get(id);
     if (controller) {
+      runAbortReasons.set(id, "cancel");
       controller.abort();
       runControllers.delete(id);
+      runAbortReasons.delete(id);
     }
     store.deleteThread(id);
     return toRendererState(store.getState());
@@ -828,8 +906,19 @@ function registerIpc() {
   ipcMain.handle("run:cancel", async (_event, threadId: unknown) => {
     const thread = String(threadId || "");
     const controller = runControllers.get(thread);
-    controller?.abort();
-    runControllers.delete(thread);
+    if (!controller) return;
+    runAbortReasons.set(thread, "cancel");
+    controller.abort();
+  });
+
+  ipcMain.handle("run:handoff", async (_event, threadId: unknown) => {
+    const thread = String(threadId || "");
+    const controller = runControllers.get(thread);
+    if (!controller) return;
+    if (runAbortReasons.get(thread) === "handoff") return;
+    runAbortReasons.set(thread, "handoff");
+    emit("agent:status", { threadId: thread, status: "running", detail: "Queued message will run next" });
+    controller.abort();
   });
 
   ipcMain.handle("open-external", async (_event, url: unknown) => {
@@ -845,8 +934,10 @@ function registerIpc() {
     await clearAllCredentials();
     // Cancel all running agents
     for (const [id, controller] of runControllers) {
+      runAbortReasons.set(id, "cancel");
       controller.abort();
       runControllers.delete(id);
+      runAbortReasons.delete(id);
     }
     return toRendererState(store.resetAll());
   });

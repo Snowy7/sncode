@@ -26,6 +26,8 @@ import markdown from "highlight.js/lib/languages/markdown";
 import diff from "highlight.js/lib/languages/diff";
 import csharp from "highlight.js/lib/languages/csharp";
 import cpp from "highlight.js/lib/languages/cpp";
+import vscodeIcon from "./assets/icons/vscode.svg";
+import cursorIcon from "./assets/icons/cursor.svg";
 
 hljs.registerLanguage("javascript", javascript);
 hljs.registerLanguage("js", javascript);
@@ -129,6 +131,8 @@ type ComposerCommand = {
 const COMPOSER_COMMANDS: ComposerCommand[] = [
   { id: "compact", trigger: "/compact", label: "compact", description: "Compact current thread history now" },
 ];
+const COMPOSER_TEXTAREA_MIN_HEIGHT = 62;
+const COMPOSER_TEXTAREA_MAX_HEIGHT = 300;
 
 function makeEmptyPerfAggregate(): PerfAggregate {
   return {
@@ -175,69 +179,85 @@ function activeModelId(providers: ProviderConfig[]) {
   return providers.find((x) => x.enabled)?.model ?? "";
 }
 
-function estimateContextTokensForMessage(msg: ThreadMessage): number {
-  let tokens = Math.ceil(msg.content.length / 4) + 8;
-  if (msg.images?.length) tokens += msg.images.length * 1500;
-  return tokens;
-}
-
-const CONTEXT_FALLBACK_WINDOW = 32_768;
-const CONTEXT_COMPACT_TRIGGER_RATIO = 0.86;
-const CONTEXT_COMPACT_TARGET_RATIO = 0.58;
-const CONTEXT_MIN_HISTORY_BUDGET = 256;
-const CONTEXT_SYSTEM_PROMPT_ESTIMATE = 1_600;
-
-function toChatHistory(messages: ThreadMessage[]): ThreadMessage[] {
-  return messages.filter((m) => m.role === "user" || m.role === "assistant");
-}
-
-function estimateHistoryTokens(messages: ThreadMessage[]): number {
-  let total = 0;
-  for (const msg of messages) total += estimateContextTokensForMessage(msg);
-  return total;
-}
-
-function compactHistoryTokenEstimate(
-  history: ThreadMessage[],
-  contextWindow: number,
-  reservedOutputTokens: number,
-): { compactedHistoryTokens: number; estimatedInputTokens: number; usedCompaction: boolean } {
-  const historyTokens = estimateHistoryTokens(history);
-  const triggerLimit = Math.floor(contextWindow * CONTEXT_COMPACT_TRIGGER_RATIO);
-  const targetUsage = Math.floor(contextWindow * CONTEXT_COMPACT_TARGET_RATIO);
-  const estimatedInputWithoutCompaction = CONTEXT_SYSTEM_PROMPT_ESTIMATE + historyTokens;
-  const estimatedUsage = estimatedInputWithoutCompaction + reservedOutputTokens;
-  if (estimatedUsage <= triggerLimit) {
-    return {
-      compactedHistoryTokens: historyTokens,
-      estimatedInputTokens: estimatedInputWithoutCompaction,
-      usedCompaction: false,
-    };
-  }
-  let historyBudget = targetUsage - CONTEXT_SYSTEM_PROMPT_ESTIMATE - reservedOutputTokens;
-  if (historyBudget < CONTEXT_MIN_HISTORY_BUDGET) {
-    historyBudget = contextWindow - CONTEXT_SYSTEM_PROMPT_ESTIMATE - reservedOutputTokens;
-  }
-  historyBudget = Math.max(CONTEXT_MIN_HISTORY_BUDGET, historyBudget);
-  const compactedHistoryTokens = Math.min(historyTokens, historyBudget);
-  return {
-    compactedHistoryTokens,
-    estimatedInputTokens: CONTEXT_SYSTEM_PROMPT_ESTIMATE + compactedHistoryTokens,
-    usedCompaction: true,
-  };
-}
-
-function getResolvedModelContextWindow(modelId: string | undefined, activeProvider?: ProviderConfig) {
-  const byModel = modelId ? modelEntryById(modelId) : undefined;
-  if (byModel?.contextWindow) return byModel.contextWindow;
-  if (activeProvider?.id === "anthropic") return 200_000;
-  if (activeProvider?.id === "codex") return 400_000;
-  return CONTEXT_FALLBACK_WINDOW;
-}
-
 function normalizeToolName(name: string): string {
   const idx = name.lastIndexOf("__");
   return idx >= 0 ? name.slice(idx + 2) : name;
+}
+
+interface AgentTodoPlan {
+  sourceMessageId: string;
+  updatedAt: string;
+  explanation?: string;
+  items: TodoItem[];
+}
+
+function normalizeTodoStatus(value: unknown): TodoItem["status"] {
+  if (value === "completed") return "completed";
+  if (value === "in_progress") return "in_progress";
+  return "pending";
+}
+
+function parsePlanItemsFromToolArgs(toolArgs: unknown, messageId: string): TodoItem[] {
+  if (!toolArgs || typeof toolArgs !== "object") return [];
+  const args = toolArgs as Record<string, unknown>;
+  const rawPlan = Array.isArray(args.plan) ? args.plan : [];
+  const items: TodoItem[] = [];
+  for (let i = 0; i < rawPlan.length; i++) {
+    const row = rawPlan[i];
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const content = typeof rec.step === "string" ? rec.step.trim() : "";
+    if (!content) continue;
+    items.push({
+      id: `${messageId}:${i}`,
+      content,
+      status: normalizeTodoStatus(rec.status),
+    });
+  }
+  return items;
+}
+
+function parsePlanItemsFromToolResult(content: string, messageId: string): TodoItem[] {
+  if (!content) return [];
+  const items: TodoItem[] = [];
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const m = line.match(/^\s*-\s*\[(pending|in_progress|completed)\]\s*(.+)$/i);
+    if (!m) continue;
+    const step = m[2].trim();
+    if (!step) continue;
+    items.push({
+      id: `${messageId}:fallback:${i}`,
+      content: step,
+      status: normalizeTodoStatus(m[1].toLowerCase()),
+    });
+  }
+  return items;
+}
+
+function latestAgentTodoPlan(messages: ThreadMessage[]): AgentTodoPlan | null {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg.role !== "tool") continue;
+    const toolName = normalizeToolName(msg.metadata?.toolName || "");
+    if (toolName !== "update_plan") continue;
+    const fromArgs = parsePlanItemsFromToolArgs(msg.metadata?.toolArgs, msg.id);
+    const items = fromArgs.length > 0 ? fromArgs : parsePlanItemsFromToolResult(msg.content, msg.id);
+    if (items.length === 0) continue;
+    const rawExplanation =
+      msg.metadata?.toolArgs && typeof msg.metadata.toolArgs === "object"
+        ? (msg.metadata.toolArgs as Record<string, unknown>).explanation
+        : undefined;
+    const explanation = typeof rawExplanation === "string" ? rawExplanation.trim() : undefined;
+    return {
+      sourceMessageId: msg.id,
+      updatedAt: msg.createdAt,
+      explanation: explanation && explanation.length > 0 ? explanation : undefined,
+      items,
+    };
+  }
+  return null;
 }
 
 function parsePathFromToolDetail(detail: string): string | undefined {
@@ -425,6 +445,24 @@ function activeMonacoThemeName(): "sncode-dark" | "sncode-light" {
   return document.documentElement.getAttribute("data-theme") === "light" ? "sncode-light" : "sncode-dark";
 }
 
+function safeDispose(label: string, disposable: { dispose: () => void } | null | undefined): void {
+  if (!disposable) return;
+  try {
+    disposable.dispose();
+  } catch (error) {
+    console.warn(`[monaco-dispose] failed to dispose ${label}`, error);
+  }
+}
+
+function safeDisposeModel(label: string, model: monacoEditor.editor.ITextModel | null | undefined): void {
+  if (!model || model.isDisposed()) return;
+  try {
+    model.dispose();
+  } catch (error) {
+    console.warn(`[monaco-dispose] failed to dispose ${label}`, error);
+  }
+}
+
 function CodeEditorSurface({
   value,
   language,
@@ -470,11 +508,13 @@ function CodeEditorSurface({
       : null;
     ro?.observe(host);
     return () => {
-      ro?.disconnect();
-      editor.dispose();
-      model.dispose();
+      const currentEditor = editorRef.current;
+      const currentModel = modelRef.current;
       editorRef.current = null;
       modelRef.current = null;
+      ro?.disconnect();
+      safeDispose("code-preview-editor", currentEditor);
+      safeDisposeModel("code-preview-model", currentModel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -549,14 +589,23 @@ function DiffEditorSurface({
       : null;
     ro?.observe(host);
     return () => {
-      ro?.disconnect();
-      editor.setModel(null);
-      editor.dispose();
-      originalModel.dispose();
-      modifiedModel.dispose();
+      const currentEditor = editorRef.current;
+      const currentOriginalModel = originalModelRef.current;
+      const currentModifiedModel = modifiedModelRef.current;
       editorRef.current = null;
       originalModelRef.current = null;
       modifiedModelRef.current = null;
+      ro?.disconnect();
+      if (currentEditor) {
+        try {
+          currentEditor.setModel(null);
+        } catch (error) {
+          console.warn("[monaco-dispose] failed to clear diff editor model", error);
+        }
+      }
+      safeDispose("diff-preview-editor", currentEditor);
+      safeDisposeModel("diff-preview-original-model", currentOriginalModel);
+      safeDisposeModel("diff-preview-modified-model", currentModifiedModel);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1200,7 +1249,8 @@ const ChatMessageRow = React.memo(function ChatMessageRow({
   onOpenSubAgent: (msg: ThreadMessage) => void;
 }) {
   const isUser = msg.role === "user";
-  const isTool = msg.role === "tool";
+  const isCompactionMessage = msg.metadata?.toolName === "compact_history";
+  const isTool = msg.role === "tool" || isCompactionMessage;
   const isError = msg.metadata?.isError;
   const timestamp = useMemo(() => formatMessageClock(msg.createdAt), [msg.createdAt]);
   const [copied, setCopied] = useState(false);
@@ -1320,7 +1370,7 @@ const VIRTUAL_OVERSCAN_PX = 800;
 const VIRTUAL_ROW_GAP = 16;
 
 function estimateMessageRowHeight(msg: ThreadMessage): number {
-  if (msg.role === "tool") {
+  if (msg.role === "tool" || msg.metadata?.toolName === "compact_history") {
     if (msg.metadata?.isTask) {
       const base = msg.metadata?.pending ? 72 : 120;
       return Math.min(320, base + Math.ceil(msg.content.length / 220) * 18);
@@ -1639,7 +1689,11 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function resolveMentionContent(content: string, mentions: Record<string, string>): { transformed: string; usedMentions: boolean } {
+function resolveMentionContent(
+  content: string,
+  mentions: Record<string, string>,
+  workspaceFiles?: string[]
+): { transformed: string; usedMentions: boolean } {
   let transformed = content;
   let usedMentions = false;
   const entries = Object.entries(mentions).sort((a, b) => b[0].length - a[0].length);
@@ -1652,6 +1706,37 @@ function resolveMentionContent(content: string, mentions: Record<string, string>
       usedMentions = true;
     }
   }
+
+  // Fallback for manually-typed mentions not present in mentionTokens:
+  // resolve @path/to/file or a unique @filename to a concrete project file.
+  const files = workspaceFiles ?? [];
+  if (files.length > 0) {
+    const byName = new Map<string, string[]>();
+    for (const f of files) {
+      const name = f.split("/").pop() || f;
+      const arr = byName.get(name);
+      if (arr) arr.push(f);
+      else byName.set(name, [f]);
+    }
+    transformed = transformed.replace(/(^|\s)@([^\s]+)/g, (match, leading: string, token: string) => {
+      const normalized = token.replace(/\\/g, "/");
+      if (!normalized) return match;
+      if (files.includes(normalized)) {
+        usedMentions = true;
+        return `${leading}${normalized}`;
+      }
+      if (normalized.includes("/")) {
+        return match;
+      }
+      const matches = byName.get(normalized);
+      if (matches && matches.length === 1) {
+        usedMentions = true;
+        return `${leading}${matches[0]}`;
+      }
+      return match;
+    });
+  }
+
   return { transformed, usedMentions };
 }
 
@@ -1669,17 +1754,13 @@ function QueueIcon() {
 
 function VSCodeIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-blue-400">
-      <path d="M16.6 2.1 7.6 10 4.7 7.8 2 9.7l3.3 3L2 16.1l2.7 1.9 2.9-2.2 9 7.9 5.4-2.1V4.2z" />
-    </svg>
+    <img src={vscodeIcon} alt="VS Code" className="h-3.5 w-3.5 shrink-0" />
   );
 }
 
 function CursorIcon() {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className="text-emerald-400">
-      <path d="M4 3h10l6 6v10H10l-6-6z" />
-    </svg>
+    <img src={cursorIcon} alt="Cursor" className="h-3.5 w-3.5 shrink-0 rounded-[3px]" />
   );
 }
 
@@ -1778,13 +1859,26 @@ function FileTreePanel({ projectPath, onFileClick }: { projectPath: string; onFi
   const [tree, setTree] = useState<FileTreeEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadTree = useCallback(() => {
     setLoading(true);
     window.sncode.getFileTree(projectPath, 4).then((entries) => {
       setTree(entries);
       setLoading(false);
+    }).catch(() => {
+      setTree([]);
+      setLoading(false);
     });
   }, [projectPath]);
+
+  useEffect(() => {
+    loadTree();
+  }, [loadTree]);
+
+  useEffect(() => {
+    const onFocus = () => loadTree();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [loadTree]);
 
   if (loading) return <div className="px-3 py-2 text-[10px] text-[var(--text-dimmer)]">Loading...</div>;
   if (tree.length === 0) return <div className="px-3 py-2 text-[10px] text-[var(--text-dimmer)]">Empty project</div>;
@@ -2365,73 +2459,144 @@ function RightSidebarSubAgent({ msg, onClose }: { msg: ThreadMessage; onClose: (
 
 /* ── Todo UI Component ── */
 
-function TodoPanel({ todos, onToggle, onRemove, onAdd }: {
+function TodoPanel({ todos, agentPlan, onToggle, onRemove, onAdd }: {
   todos: TodoItem[];
+  agentPlan: AgentTodoPlan | null;
   onToggle: (id: string) => void;
   onRemove: (id: string) => void;
   onAdd: (content: string) => void;
 }) {
   const [input, setInput] = useState("");
-  if (todos.length === 0 && !input) return null;
+  const [showAgentPlan, setShowAgentPlan] = useState(true);
+
+  const hasAgentPlan = !!agentPlan && agentPlan.items.length > 0;
+  const showManualPanel = todos.length > 0 || input.length > 0;
+  useEffect(() => {
+    if (hasAgentPlan) setShowAgentPlan(true);
+  }, [hasAgentPlan, agentPlan?.sourceMessageId]);
+
+  if (!hasAgentPlan && !showManualPanel) return null;
 
   const completed = todos.filter((t) => t.status === "completed").length;
   const total = todos.length;
 
+  const agentItems = agentPlan?.items ?? [];
+  const agentCompleted = agentItems.filter((t) => t.status === "completed").length;
+  const agentInProgress = agentItems.filter((t) => t.status === "in_progress").length;
+  const agentPending = agentItems.filter((t) => t.status === "pending").length;
+  const agentTotal = agentItems.length;
+  const agentProgressPercent = agentTotal > 0 ? (agentCompleted / agentTotal) * 100 : 0;
+
   return (
-    <div className="mb-2 rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)] overflow-hidden">
-      {/* Header with progress */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-[var(--border-subtle)]">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-dim)]">
-          <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-        </svg>
-        <span className="text-[11px] font-medium text-[var(--text-muted)]">Tasks</span>
-        {total > 0 && (
-          <span className="text-[10px] text-[var(--text-dim)]">{completed}/{total}</span>
-        )}
-        {total > 0 && (
-          <div className="ml-auto h-1 w-16 rounded-full bg-[var(--bg-user-bubble)]">
-            <div className="h-1 rounded-full bg-emerald-500/60 transition-all" style={{ width: `${(completed / total) * 100}%` }} />
-          </div>
-        )}
-      </div>
+    <div className="mb-2 space-y-2">
+      {hasAgentPlan && (
+        <div className="overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)]">
+          <button
+            type="button"
+            onClick={() => setShowAgentPlan((prev) => !prev)}
+            className="flex w-full items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-1.5 text-left"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-400">
+              <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </svg>
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">Agent Plan</span>
+            <span className="text-[10px] text-[var(--text-dim)]">{agentCompleted}/{agentTotal}</span>
+            <span className="rounded border border-amber-400/30 bg-amber-400/10 px-1 py-px text-[9px] text-amber-300">
+              {agentInProgress > 0 ? `${agentInProgress} in progress` : agentPending > 0 ? `${agentPending} pending` : "all done"}
+            </span>
+            <span className="ml-auto text-[10px] text-[var(--text-dimmest)]">{timeAgo(agentPlan.updatedAt)}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`text-[var(--text-dim)] transition-transform duration-300 ${showAgentPlan ? "rotate-180" : ""}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
 
-      {/* Todo items */}
-      <div className="max-h-[120px] overflow-auto">
-        {todos.map((todo) => (
-          <div key={todo.id} className="flex items-center gap-2 px-3 py-1 hover:bg-[var(--bg-card)] group">
-            <button onClick={() => onToggle(todo.id)} className="shrink-0">
-              {todo.status === "completed" ? (
-                <svg width="12" height="12" viewBox="0 0 12 12" className="text-emerald-500/70"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="currentColor" stroke="currentColor" /><path d="M3 6l2 2 4-4" stroke="var(--check-mark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 12 12" className="text-[var(--text-dimmer)]"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" /></svg>
+          <div className={`grid transition-all duration-300 ease-out ${showAgentPlan ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+            <div className="overflow-hidden">
+              <div className="px-3 pt-2">
+                <div className="h-1 w-full overflow-hidden rounded-full bg-[var(--bg-user-bubble)]">
+                  <div className="h-1 rounded-full bg-emerald-500/70 transition-all duration-300" style={{ width: `${agentProgressPercent}%` }} />
+                </div>
+              </div>
+              {agentPlan.explanation && (
+                <div className="px-3 pt-2 text-[10px] text-[var(--text-dim)]">{agentPlan.explanation}</div>
               )}
-            </button>
-            <span className={`flex-1 text-[11px] ${todo.status === "completed" ? "text-[var(--text-dim)] line-through" : "text-[var(--text-label)]"}`}>{todo.content}</span>
-            <button onClick={() => onRemove(todo.id)} className="hidden text-[var(--text-dimmer)] transition hover:text-red-400 group-hover:block shrink-0">
-              <XIcon />
-            </button>
+              <div className="max-h-[180px] overflow-auto px-3 py-2">
+                {agentItems.map((item) => (
+                  <div key={item.id} className="flex items-start gap-2 py-1">
+                    <span className="mt-0.5 shrink-0">
+                      {item.status === "completed" ? (
+                        <svg width="11" height="11" viewBox="0 0 12 12" className="text-emerald-500"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="currentColor" stroke="currentColor" /><path d="M3 6l2 2 4-4" stroke="var(--check-mark)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      ) : item.status === "in_progress" ? (
+                        <span className="block h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse" />
+                      ) : (
+                        <span className="block h-2.5 w-2.5 rounded-full border border-[var(--text-dimmer)]" />
+                      )}
+                    </span>
+                    <span className={`text-[11px] leading-relaxed ${item.status === "completed" ? "text-[var(--text-dim)] line-through" : item.status === "in_progress" ? "text-amber-200" : "text-[var(--text-label)]"}`}>
+                      {item.content}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
-      {/* Add todo input */}
-      <div className="flex items-center gap-2 border-t border-[var(--border-subtle)] px-3 py-1.5">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && input.trim()) {
-              onAdd(input.trim());
-              setInput("");
-            }
-          }}
-          placeholder="Add a task..."
-          className="min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-label)] outline-none placeholder:text-[var(--text-dimmest)]"
-        />
-        {input.trim() && (
-          <button onClick={() => { onAdd(input.trim()); setInput(""); }} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)]">Add</button>
-        )}
-      </div>
+      {showManualPanel && (
+        <div className="overflow-hidden rounded-lg border border-[var(--border-strong)] bg-[var(--bg-surface)]">
+          <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-3 py-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-dim)]">
+              <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+            </svg>
+            <span className="text-[11px] font-medium text-[var(--text-muted)]">Notes</span>
+            {total > 0 && (
+              <span className="text-[10px] text-[var(--text-dim)]">{completed}/{total}</span>
+            )}
+            {total > 0 && (
+              <div className="ml-auto h-1 w-16 rounded-full bg-[var(--bg-user-bubble)]">
+                <div className="h-1 rounded-full bg-emerald-500/60 transition-all" style={{ width: `${(completed / total) * 100}%` }} />
+              </div>
+            )}
+          </div>
+
+          <div className="max-h-[120px] overflow-auto">
+            {todos.map((todo) => (
+              <div key={todo.id} className="group flex items-center gap-2 px-3 py-1 hover:bg-[var(--bg-card)]">
+                <button onClick={() => onToggle(todo.id)} className="shrink-0">
+                  {todo.status === "completed" ? (
+                    <svg width="12" height="12" viewBox="0 0 12 12" className="text-emerald-500/70"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="currentColor" stroke="currentColor" /><path d="M3 6l2 2 4-4" stroke="var(--check-mark)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                  ) : (
+                    <svg width="12" height="12" viewBox="0 0 12 12" className="text-[var(--text-dimmer)]"><rect x="0.5" y="0.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" /></svg>
+                  )}
+                </button>
+                <span className={`flex-1 text-[11px] ${todo.status === "completed" ? "text-[var(--text-dim)] line-through" : "text-[var(--text-label)]"}`}>{todo.content}</span>
+                <button onClick={() => onRemove(todo.id)} className="hidden shrink-0 text-[var(--text-dimmer)] transition hover:text-red-400 group-hover:block">
+                  <XIcon />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-2 border-t border-[var(--border-subtle)] px-3 py-1.5">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && input.trim()) {
+                  onAdd(input.trim());
+                  setInput("");
+                }
+              }}
+              placeholder="Add a quick note..."
+              className="min-w-0 flex-1 bg-transparent text-[11px] text-[var(--text-label)] outline-none placeholder:text-[var(--text-dimmest)]"
+            />
+            {input.trim() && (
+              <button onClick={() => { onAdd(input.trim()); setInput(""); }} className="text-[10px] text-[var(--text-dim)] hover:text-[var(--text-muted)]">Add</button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2963,6 +3128,7 @@ const RightSidebarPane = React.memo(function RightSidebarPane({
 
 const ComposerPanel = React.memo(function ComposerPanel({
   todos,
+  agentPlan,
   onToggleTodo,
   onRemoveTodo,
   onAddTodo,
@@ -2974,7 +3140,6 @@ const ComposerPanel = React.memo(function ComposerPanel({
   removeImage,
   msgInput,
   setMsgInput,
-  mentionTokens,
   setMentionTokens,
   workspaceFiles,
   fileInputRef,
@@ -2994,6 +3159,7 @@ const ComposerPanel = React.memo(function ComposerPanel({
   selThreadId,
 }: {
   todos: TodoItem[];
+  agentPlan: AgentTodoPlan | null;
   onToggleTodo: (id: string) => void;
   onRemoveTodo: (id: string) => void;
   onAddTodo: (content: string) => void;
@@ -3005,7 +3171,6 @@ const ComposerPanel = React.memo(function ComposerPanel({
   removeImage: (idx: number) => void;
   msgInput: string;
   setMsgInput: React.Dispatch<React.SetStateAction<string>>;
-  mentionTokens: Record<string, string>;
   setMentionTokens: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   workspaceFiles: string[];
   fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -3030,6 +3195,23 @@ const ComposerPanel = React.memo(function ComposerPanel({
   const canQueue = msgInput.trim().length > 0 || pendingImages.length > 0;
   const [showPermissionPicker, setShowPermissionPicker] = useState(false);
   const [cursorPos, setCursorPos] = useState(0);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const resizeComposerTextarea = useCallback((target?: HTMLTextAreaElement | null) => {
+    const textarea = target ?? composerTextareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = "0px";
+    const nextHeight = Math.max(
+      COMPOSER_TEXTAREA_MIN_HEIGHT,
+      Math.min(COMPOSER_TEXTAREA_MAX_HEIGHT, textarea.scrollHeight)
+    );
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > COMPOSER_TEXTAREA_MAX_HEIGHT ? "auto" : "hidden";
+  }, []);
+
+  useLayoutEffect(() => {
+    resizeComposerTextarea();
+  }, [msgInput, resizeComposerTextarea]);
 
   const trigger = useMemo(() => {
     const upToCursor = msgInput.slice(0, Math.max(0, Math.min(cursorPos, msgInput.length)));
@@ -3074,16 +3256,8 @@ const ComposerPanel = React.memo(function ComposerPanel({
   }
 
   function chooseMention(fullPath: string) {
-    const base = fullPath.split("/").pop() || fullPath;
-    const preferred = `@${base}`;
-    let token = preferred;
-    const existing = mentionTokens[token];
-    if (existing && existing !== fullPath) token = `@${fullPath}`;
-    let suffix = 2;
-    while (mentionTokens[token] && mentionTokens[token] !== fullPath) {
-      token = `${preferred}#${suffix}`;
-      suffix += 1;
-    }
+    // Always insert canonical full path mention to avoid basename ambiguity.
+    const token = `@${fullPath}`;
     replaceCurrentToken(token);
     setMentionTokens((prev) => ({ ...prev, [token]: fullPath }));
   }
@@ -3091,7 +3265,7 @@ const ComposerPanel = React.memo(function ComposerPanel({
   return (
     <div className="shrink-0 px-4 pb-4 pt-1">
       <div className="mx-auto max-w-[820px]">
-        <TodoPanel todos={todos} onToggle={onToggleTodo} onRemove={onRemoveTodo} onAdd={onAddTodo} />
+        <TodoPanel todos={todos} agentPlan={agentPlan} onToggle={onToggleTodo} onRemove={onRemoveTodo} onAdd={onAddTodo} />
       </div>
       <form onSubmit={onSend} className="mx-auto max-w-[820px]">
         <div
@@ -3141,10 +3315,12 @@ const ComposerPanel = React.memo(function ComposerPanel({
           )}
 
           <textarea
+            ref={composerTextareaRef}
             value={msgInput}
             onChange={(e) => {
               setMsgInput(e.target.value);
               setCursorPos(e.target.selectionStart ?? e.target.value.length);
+              resizeComposerTextarea(e.target);
             }}
             onClick={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? msgInput.length)}
             onKeyUp={(e) => setCursorPos((e.target as HTMLTextAreaElement).selectionStart ?? msgInput.length)}
@@ -3167,6 +3343,7 @@ const ComposerPanel = React.memo(function ComposerPanel({
             }}
             placeholder={pendingImages.length > 0 ? "Add a message or just send the image..." : "Type your message here..."}
             rows={2}
+            style={{ minHeight: COMPOSER_TEXTAREA_MIN_HEIGHT, maxHeight: COMPOSER_TEXTAREA_MAX_HEIGHT }}
             className="w-full resize-none bg-transparent px-4 pb-1.5 pt-3 text-[13px] leading-relaxed text-[var(--text-primary)] outline-none placeholder:text-[var(--text-dimmest)]"
           />
           {showSuggestionPopover && (
@@ -3296,10 +3473,10 @@ const ComposerPanel = React.memo(function ComposerPanel({
   );
 }, (prev, next) => (
   prev.todos === next.todos &&
+  prev.agentPlan === next.agentPlan &&
   prev.dragOver === next.dragOver &&
   prev.pendingImages === next.pendingImages &&
   prev.msgInput === next.msgInput &&
-  prev.mentionTokens === next.mentionTokens &&
   prev.workspaceFiles === next.workspaceFiles &&
   prev.providers === next.providers &&
   prev.showModelPicker === next.showModelPicker &&
@@ -3575,6 +3752,8 @@ export default function App() {
   const perfGlobalRef = useRef<PerfAggregate>(makeEmptyPerfAggregate());
   const perfActiveTurnRef = useRef<PerfTurnSnapshot | null>(null);
   const selThreadIdRef = useRef<string | null>(null);
+  const selProjectPathRef = useRef<string | null>(null);
+  const workspaceFilesFetchSeqRef = useRef(0);
   const permissionRef = useRef<PermissionMode>("full");
   const queuedMessagesRef = useRef<Record<string, QueuedMessageDraft>>({});
   const activeModelIdRef = useRef("");
@@ -3597,6 +3776,7 @@ export default function App() {
   useEffect(() => {
     selThreadIdRef.current = selThreadId;
   }, [selThreadId]);
+
 
   useEffect(() => {
     permissionRef.current = permission;
@@ -3655,7 +3835,11 @@ export default function App() {
 
   const selProject = useMemo(() => state.projects.find((p) => p.id === selProjectId) ?? null, [state.projects, selProjectId]);
   const selThread = useMemo(() => state.threads.find((t) => t.id === selThreadId) ?? null, [state.threads, selThreadId]);
+  useEffect(() => {
+    selProjectPathRef.current = selProject?.folderPath ?? null;
+  }, [selProject?.folderPath]);
   const threadMessages = selThreadId ? state.messages : EMPTY_THREAD_MESSAGES;
+  const agentPlan = useMemo(() => latestAgentTodoPlan(threadMessages), [threadMessages]);
   const threadMessageMeta = useMemo<ThreadMessageMetaMap>(() => {
     const map: ThreadMessageMetaMap = new Map();
     for (const row of threadMessageMetaRows) map.set(row.threadId, row);
@@ -3672,59 +3856,38 @@ export default function App() {
     return byId;
   }, [threadMessages]);
 
-  // Comprehensive thread stats: tokens, tool calls, context, pricing
+  // Thread stats: provider-reported tokens, tool calls, message counts, pricing
   const threadStats = useMemo(() => {
     let inputTokens = 0;
     let outputTokens = 0;
     let toolCalls = 0;
     let userMsgs = 0;
     let assistantMsgs = 0;
-    let observedLatestInputTokens = 0;
     for (const m of threadMessages) {
       if (m.metadata?.inputTokens) inputTokens += m.metadata.inputTokens;
       if (m.metadata?.outputTokens) outputTokens += m.metadata.outputTokens;
-      if (m.role === "assistant" && (m.metadata?.inputTokens ?? 0) > 0) {
-        observedLatestInputTokens = m.metadata?.inputTokens ?? observedLatestInputTokens;
-      }
       if (m.metadata?.toolName) toolCalls++;
       if (m.role === "user") userMsgs++;
       if (m.role === "assistant" && !m.metadata?.toolName) assistantMsgs++;
     }
 
-    // Get active model for pricing + context window
+    // Get active model for pricing.
     const activeProvider = state.providers.find((p) => p.enabled);
     const threadModelId = selThread?.lastModel;
     const modelId = (threadModelId && modelEntryById(threadModelId)) ? threadModelId : activeProvider?.model || "";
-    const contextWindow = getResolvedModelContextWindow(modelId, activeProvider);
-    const reservedOutputTokens = state.settings.maxTokens || 0;
-    const history = toChatHistory(threadMessages);
-    const historyInputTokens = estimateHistoryTokens(history);
-    const compactEstimate = compactHistoryTokenEstimate(history, contextWindow, reservedOutputTokens);
-    const estimatedInputTokens = Math.max(observedLatestInputTokens, compactEstimate.estimatedInputTokens);
-    const contextTokens = estimatedInputTokens + reservedOutputTokens;
-    const contextPct = contextWindow > 0 ? Math.min(100, Math.round((contextTokens / contextWindow) * 100)) : 0;
     const cost = estimateCost(modelId, inputTokens, outputTokens);
-    const displayInputTokens = inputTokens > 0 ? inputTokens : historyInputTokens;
-    const totalTokens = displayInputTokens + outputTokens;
+    const totalTokens = inputTokens + outputTokens;
     return {
       inputTokens,
       outputTokens,
-      displayInputTokens,
       totalTokens,
       toolCalls,
       userMsgs,
       assistantMsgs,
-      contextTokens,
-      contextWindow,
-      contextPct,
       cost,
       modelId,
-      observedLatestInputTokens,
-      estimatedInputTokens,
-      usedCompaction: compactEstimate.usedCompaction,
-      historyInputTokens,
     };
-  }, [threadMessages, state.providers, state.settings.maxTokens, selThread?.lastModel]);
+  }, [threadMessages, state.providers, selThread?.lastModel]);
 
   useEffect(() => {
     const targetModel = selThread?.lastModel;
@@ -3893,6 +4056,8 @@ export default function App() {
       if (e.status !== "running") {
         finishPerfTurn(e.threadId);
         void flushQueuedMessageForThread(e.threadId);
+        const projectPath = selProjectPathRef.current;
+        if (projectPath) void refreshWorkspaceFiles(projectPath);
       }
       if (e.threadId === selThreadId) {
         setStatusText(e.detail);
@@ -3935,6 +4100,9 @@ export default function App() {
       }
       setStreamChunk((prev) => (prev ? "" : prev));
     });
+    const off5 = window.sncode.on("agent:handoff", (e) => {
+      void flushQueuedMessageForThread(e.threadId);
+    });
     return () => {
       if (messageUpdatesRafRef.current !== null) {
         cancelAnimationFrame(messageUpdatesRafRef.current);
@@ -3946,7 +4114,7 @@ export default function App() {
         streamChunkRafRef.current = null;
       }
       streamChunkBufferRef.current = "";
-      off1(); off2(); off3(); off4();
+      off1(); off2(); off3(); off4(); off5();
     };
   }, [selThreadId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -3995,10 +4163,17 @@ export default function App() {
     }
     window.sncode.getGitBranches(selProject.folderPath).then((r) => { setGitBranches(r.branches); setCurrentBranch(r.current); });
     window.sncode.getGitStatus(selProject.folderPath).then(setGitStatus);
-    window.sncode.getFileTree(selProject.folderPath, 8).then((entries) => {
-      setWorkspaceFiles(flattenFileTreeEntries(entries));
-    }).catch(() => setWorkspaceFiles([]));
+    void refreshWorkspaceFiles(selProject.folderPath);
   }, [selProject]);
+
+  useEffect(() => {
+    const onFocus = () => {
+      const projectPath = selProjectPathRef.current;
+      if (projectPath) void refreshWorkspaceFiles(projectPath);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
 
   useEffect(() => {
     const hasEnabled = state.providers.some((p) => p.enabled);
@@ -4205,6 +4380,18 @@ export default function App() {
     trackIpcPayload(threadMessages, threadId);
     if (threadMessagesFetchSeqRef.current !== seq) return;
     setState((prev) => ({ ...prev, messages: threadMessages }));
+  }
+
+  async function refreshWorkspaceFiles(projectPath: string, depth = 16) {
+    const seq = ++workspaceFilesFetchSeqRef.current;
+    try {
+      const entries = await window.sncode.getFileTree(projectPath, depth);
+      if (workspaceFilesFetchSeqRef.current !== seq) return;
+      setWorkspaceFiles(flattenFileTreeEntries(entries));
+    } catch {
+      if (workspaceFilesFetchSeqRef.current !== seq) return;
+      setWorkspaceFiles([]);
+    }
   }
 
   async function addProject() {
@@ -4432,8 +4619,8 @@ export default function App() {
   async function flushQueuedMessageForThread(threadId: string) {
     const queued = queuedMessagesRef.current[threadId];
     if (!queued) return;
-    clearQueuedMessageForThread(threadId);
-    await sendPayload(threadId, queued, { fromQueue: true });
+    const sent = await sendPayload(threadId, queued, { fromQueue: true });
+    if (sent) clearQueuedMessageForThread(threadId);
   }
 
   async function send(e: FormEvent) {
@@ -4460,7 +4647,7 @@ export default function App() {
       return;
     }
 
-    const mentionResolved = resolveMentionContent(trimmedInput, mentionTokens);
+    const mentionResolved = resolveMentionContent(trimmedInput, mentionTokens, workspaceFiles);
     const draft: QueuedMessageDraft = {
       content: mentionResolved.transformed,
       displayContent: mentionResolved.usedMentions ? trimmedInput : undefined,
@@ -4473,6 +4660,9 @@ export default function App() {
       setPendingImages([]);
       setMentionTokens({});
       setStatusText("Queued next message");
+      void window.sncode.requestRunHandoff(selThreadId).catch(() => {
+        // ignore handoff request errors; queued message remains pending
+      });
       return;
     }
 
@@ -4794,6 +4984,7 @@ export default function App() {
 
           <ComposerPanel
             todos={todos}
+            agentPlan={agentPlan}
             onToggleTodo={toggleTodo}
             onRemoveTodo={removeTodo}
             onAddTodo={addTodo}
@@ -4805,7 +4996,6 @@ export default function App() {
             removeImage={removeImage}
             msgInput={msgInput}
             setMsgInput={setMsgInput}
-            mentionTokens={mentionTokens}
             setMentionTokens={setMentionTokens}
             workspaceFiles={workspaceFiles}
             fileInputRef={fileInputRef}
@@ -4831,28 +5021,11 @@ export default function App() {
           {/* ─── Bottom stats bar ─── */}
           {threadMessages.length > 0 && (
             <div className="flex shrink-0 items-center gap-3 border-t border-[var(--border)] px-4 py-1.5">
-              {/* Context usage bar */}
-              <div
-                className="flex items-center gap-1.5"
-                title={`Estimated request context: ~${threadStats.contextTokens.toLocaleString()} / ${threadStats.contextWindow.toLocaleString()} tokens${threadStats.observedLatestInputTokens > 0 ? ` | last observed prompt: ${threadStats.observedLatestInputTokens.toLocaleString()}` : ""}${threadStats.usedCompaction ? " | compacted history estimate applied" : ""}`}
-              >
-                <span className="text-[10px] text-[var(--text-dimmest)]">CTX</span>
-                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-[var(--bg-active)]">
-                  <div
-                    className={`h-full rounded-full transition-all ${threadStats.contextPct > 80 ? "bg-red-500" : threadStats.contextPct > 50 ? "bg-amber-500" : "bg-emerald-500"}`}
-                    style={{ width: `${threadStats.contextPct}%` }}
-                  />
-                </div>
-                <span className="text-[10px] text-[var(--text-dimmest)]">{threadStats.contextPct}%</span>
-              </div>
-
-              <div className="h-3 w-px bg-[var(--bg-active)]" />
-
               {/* Token counts */}
-              <div className="flex items-center gap-1" title={`Input: ${threadStats.displayInputTokens.toLocaleString()} | Output: ${threadStats.outputTokens.toLocaleString()}${threadStats.inputTokens === 0 ? " (input estimated from chat history)" : ""}`}>
+              <div className="flex items-center gap-1" title={`Input: ${threadStats.inputTokens.toLocaleString()} | Output: ${threadStats.outputTokens.toLocaleString()}`}>
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-dimmest)]"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                 <span className="text-[10px] text-[var(--text-dimmest)]">
-                  <span className="text-[var(--text-dimmer)]">{threadStats.displayInputTokens.toLocaleString()}</span>
+                  <span className="text-[var(--text-dimmer)]">{threadStats.inputTokens.toLocaleString()}</span>
                   <span className="mx-0.5">/</span>
                   <span className="text-[var(--text-dimmer)]">{threadStats.outputTokens.toLocaleString()}</span>
                   <span className="ml-0.5">tok</span>

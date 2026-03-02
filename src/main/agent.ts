@@ -10,6 +10,7 @@ import { EnvironmentInfo, listFiles, readTextFile, runCommand, writeTextFile, ed
 import { applyPatch } from "./apply-patch";
 import { loadSkillContent } from "./skills";
 import { McpTool, mcpManager } from "./mcp";
+import type { Options as ClaudeAgentOptions, SDKMessage, SDKResultMessage } from "@anthropic-ai/claude-agent-sdk";
 
 /* ── Types ── */
 
@@ -34,6 +35,8 @@ export interface RunAgentInput {
   providers: ProviderConfig[];
   history: ThreadMessage[];
   projectRoot: string;
+  /** Existing Claude Agent SDK session id for this thread (if any) */
+  anthropicSessionId?: string;
   settings: AgentSettings;
   getCredential: (providerId: ProviderConfig["id"]) => Promise<string | null>;
   abortSignal?: AbortSignal;
@@ -51,7 +54,7 @@ const DEFAULT_MAX_TOOL_STEPS = 25;
 const FALLBACK_CONTEXT_WINDOW = 32768;
 const AUTO_COMPACT_THRESHOLD_RATIO = 0.86;
 const COMPACT_TARGET_RATIO = 0.58;
-const MIN_HISTORY_BUDGET = 256;
+const MIN_HISTORY_MESSAGES = 8;
 
 /* ── Project memory ── */
 
@@ -78,28 +81,11 @@ function writeProjectMemory(projectRoot: string, content: string): string {
   }
 }
 
-/* ── Token estimation ── */
-
-/** Rough token estimate: ~4 chars per token for English text */
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-function estimateMessageTokens(msg: ThreadMessage): number {
-  let tokens = estimateTokens(msg.content) + 8;
-  if (msg.images) {
-    // Rough vision input estimate per image.
-    tokens += msg.images.length * 1500;
-  }
-  return tokens;
-}
-
 /* ── Context compaction ── */
 
 /**
- * Codex-style context budgeting:
- * estimated usage = system prompt tokens + history tokens + reserved output tokens.
- * If usage crosses threshold, compact history and keep required anchor messages.
+ * Context budgeting based on provider-reported usage from prior turns.
+ * If observed prompt usage crosses threshold, compact history and keep required anchor messages.
  */
 function getContextWindow(provider: ProviderConfig): number {
   const modelWindow = modelEntryById(provider.model)?.contextWindow;
@@ -110,13 +96,7 @@ function getContextWindow(provider: ProviderConfig): number {
 }
 
 function toChatHistory(history: ThreadMessage[]): ThreadMessage[] {
-  return history.filter((m) => m.role === "user" || m.role === "assistant");
-}
-
-function estimateHistoryTokens(history: ThreadMessage[]): number {
-  let total = 0;
-  for (const msg of history) total += estimateMessageTokens(msg);
-  return total;
+  return history.filter((m) => (m.role === "user" || m.role === "assistant") && m.metadata?.compactionLog !== true);
 }
 
 function findLastIndexByRole(history: ThreadMessage[], role: "user" | "assistant"): number {
@@ -171,11 +151,10 @@ function summarizeHistoryToolMessage(msg: ThreadMessage): string | undefined {
   return truncated ? `${header}\n${truncated}` : header;
 }
 
-function compactHistoryToBudget(history: ThreadMessage[], historyBudget: number): ThreadMessage[] {
+function compactHistoryToMessageBudget(history: ThreadMessage[], messageBudget: number): ThreadMessage[] {
   if (history.length <= 2) return history;
-  const budget = Math.max(MIN_HISTORY_BUDGET, historyBudget);
+  const budget = Math.max(MIN_HISTORY_MESSAGES, messageBudget);
 
-  const tokenByIndex = history.map((msg) => estimateMessageTokens(msg));
   const required = buildRequiredIndexes(history);
   const selected = new Set<number>();
   let used = 0;
@@ -183,10 +162,9 @@ function compactHistoryToBudget(history: ThreadMessage[], historyBudget: number)
   const trySelect = (idx: number): boolean => {
     if (idx < 0 || idx >= history.length) return false;
     if (selected.has(idx)) return true;
-    const cost = tokenByIndex[idx];
-    if (used + cost > budget) return false;
+    if (used + 1 > budget) return false;
     selected.add(idx);
-    used += cost;
+    used += 1;
     return true;
   };
 
@@ -211,40 +189,93 @@ function compactHistoryToBudget(history: ThreadMessage[], historyBudget: number)
   return sorted.map((idx) => history[idx]);
 }
 
+function latestObservedInputTokens(history: ThreadMessage[]): number {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const msg = history[i];
+    if (msg.role !== "assistant") continue;
+    const inputTokens = msg.metadata?.inputTokens;
+    if (typeof inputTokens === "number" && Number.isFinite(inputTokens) && inputTokens > 0) {
+      return inputTokens;
+    }
+  }
+  return 0;
+}
+
+interface HistoryCompactionReport {
+  removedCount: number;
+  summary: string;
+}
+
+interface HistoryPreparationResult {
+  history: ThreadMessage[];
+  compactionReport?: HistoryCompactionReport;
+}
+
+function buildAutoCompactionSummary(removed: ThreadMessage[]): string {
+  const MAX_SUMMARY_CHARS = 220_000;
+  let summary = `[Context compacted automatically at ${new Date().toISOString()}]\n`;
+  summary += `Removed ${removed.length} earlier chat message${removed.length === 1 ? "" : "s"} before this turn.\n`;
+  summary += "Compacted message transcript:\n";
+  let used = summary.length;
+
+  for (let i = 0; i < removed.length; i += 1) {
+    const msg = removed[i];
+    const content = (msg.content || "").trim();
+    const imageNote = msg.images?.length ? `\n[images: ${msg.images.length}]` : "";
+    const block = `\n---\n[${msg.createdAt}] ${msg.role}\n${content || "[empty]"}${imageNote}\n`;
+    if (used + block.length > MAX_SUMMARY_CHARS) {
+      summary += `\n...[truncated ${removed.length - i} message${removed.length - i === 1 ? "" : "s"} to keep UI responsive]\n`;
+      break;
+    }
+    summary += block;
+    used += block.length;
+  }
+
+  return summary;
+}
+
+function buildCompactionReport(originalHistory: ThreadMessage[], compactedHistory: ThreadMessage[]): HistoryCompactionReport | undefined {
+  const keptIds = new Set(compactedHistory.map((msg) => msg.id));
+  const removed = originalHistory.filter((msg) => !keptIds.has(msg.id));
+  if (removed.length === 0) return undefined;
+  return {
+    removedCount: removed.length,
+    summary: buildAutoCompactionSummary(removed),
+  };
+}
+
 function prepareHistoryForRequest(
   provider: ProviderConfig,
   history: ThreadMessage[],
-  systemPrompt: string,
+  _systemPrompt: string,
   maxOutputTokens: number
-): ThreadMessage[] {
+): HistoryPreparationResult {
   const chatHistory = toChatHistory(history);
-  if (chatHistory.length <= 2) return chatHistory;
+  if (chatHistory.length <= 2) return { history: chatHistory };
 
   const contextWindow = getContextWindow(provider);
-  const systemTokens = estimateTokens(systemPrompt);
   const triggerLimit = Math.floor(contextWindow * AUTO_COMPACT_THRESHOLD_RATIO);
-  const targetUsage = Math.floor(contextWindow * COMPACT_TARGET_RATIO);
+  const targetInputUsage = Math.floor(contextWindow * COMPACT_TARGET_RATIO);
+  const observedInputTokens = latestObservedInputTokens(chatHistory);
+  const observedUsage = observedInputTokens + maxOutputTokens;
 
-  const historyTokens = estimateHistoryTokens(chatHistory);
-  const estimatedUsage = systemTokens + historyTokens + maxOutputTokens;
-  if (estimatedUsage <= triggerLimit) return chatHistory;
-
-  let historyBudget = targetUsage - systemTokens - maxOutputTokens;
-  if (historyBudget < MIN_HISTORY_BUDGET) {
-    historyBudget = contextWindow - systemTokens - maxOutputTokens;
-  }
-  if (historyBudget < MIN_HISTORY_BUDGET) {
-    historyBudget = MIN_HISTORY_BUDGET;
+  if (observedInputTokens <= 0 || observedUsage <= triggerLimit) {
+    return { history: chatHistory };
   }
 
-  let compacted = compactHistoryToBudget(chatHistory, historyBudget);
-  const compactedUsage = systemTokens + estimateHistoryTokens(compacted) + maxOutputTokens;
-  if (compactedUsage > contextWindow) {
-    const hardBudget = Math.max(MIN_HISTORY_BUDGET, contextWindow - systemTokens - maxOutputTokens);
-    compacted = compactHistoryToBudget(compacted, hardBudget);
+  const keepRatioRaw = targetInputUsage / Math.max(observedInputTokens, 1);
+  const keepRatio = Math.max(0.25, Math.min(0.95, keepRatioRaw));
+  const targetMessageCount = Math.max(MIN_HISTORY_MESSAGES, Math.floor(chatHistory.length * keepRatio));
+
+  let compacted = compactHistoryToMessageBudget(chatHistory, targetMessageCount);
+  if (compacted.length >= chatHistory.length && chatHistory.length > MIN_HISTORY_MESSAGES) {
+    compacted = compactHistoryToMessageBudget(chatHistory, chatHistory.length - 1);
   }
 
-  return compacted;
+  return {
+    history: compacted,
+    compactionReport: buildCompactionReport(chatHistory, compacted),
+  };
 }
 
 /* ── Timeout helper ── */
@@ -1270,10 +1301,10 @@ async function getValidOAuthData(
 
 /**
  * Build a User-Agent string for Codex requests.
- * Format: "sncode/0.2.0 (win32 10.0.26100; x64)"
+ * Format: "sncode/0.2.2 (win32 10.0.26100; x64)"
  */
 function codexUserAgent(): string {
-  return `sncode/0.2.0 (${os.platform()} ${os.release()}; ${os.arch()})`;
+  return `sncode/0.2.2 (${os.platform()} ${os.release()}; ${os.arch()})`;
 }
 
 /**
@@ -1361,44 +1392,6 @@ function createCodexOAuthClient(oauthData: OAuthData): OpenAI {
       return response;
     },
   });
-}
-
-/* ── Convert ThreadMessage history → Anthropic messages ── */
-
-function toAnthropicMessages(history: ThreadMessage[]): Anthropic.MessageParam[] {
-  const messages: Anthropic.MessageParam[] = [];
-  for (const msg of history) {
-    if (msg.role === "user") {
-      if (msg.images && msg.images.length > 0) {
-        // Multimodal: images + text
-        const content: Anthropic.ContentBlockParam[] = [];
-        for (const img of msg.images) {
-          content.push({
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-              data: img.data,
-            },
-          });
-        }
-        if (msg.content) {
-          content.push({ type: "text", text: msg.content });
-        }
-        messages.push({ role: "user", content });
-      } else {
-        messages.push({ role: "user", content: msg.content });
-      }
-    } else if (msg.role === "assistant") {
-      messages.push({ role: "assistant", content: msg.content });
-    } else if (msg.role === "tool") {
-      const toolSummary = summarizeHistoryToolMessage(msg);
-      if (toolSummary) {
-        messages.push({ role: "user", content: toolSummary });
-      }
-    }
-  }
-  return messages;
 }
 
 /* ── Convert ThreadMessage history → OpenAI messages ── */
@@ -1510,8 +1503,15 @@ async function runCodexOAuthAgent(
   const tools = toResponsesTools(chatTools);
 
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
-  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
-  const inputItems: any[] = toResponsesInput(compactedHistory);
+  const preparedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
+  if (preparedHistory.compactionReport) {
+    input.callbacks.onText(preparedHistory.compactionReport.summary, {
+      toolName: "compact_history",
+      toolDetail: `Auto-compacted context (${preparedHistory.compactionReport.removedCount} messages removed)`,
+      compactionLog: true,
+    });
+  }
+  const inputItems: any[] = toResponsesInput(preparedHistory.history);
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
   let finalText = "";
   let totalInputTokens = 0;
@@ -1800,219 +1800,405 @@ function formatToolDetail(name: string, args: Record<string, unknown>): string {
 
 /* ── Anthropic streaming agentic loop ── */
 
+type ClaudeAgentSdkModule = typeof import("@anthropic-ai/claude-agent-sdk");
+let claudeAgentSdkModulePromise: Promise<ClaudeAgentSdkModule> | null = null;
+
+async function loadClaudeAgentSdk(): Promise<ClaudeAgentSdkModule> {
+  if (!claudeAgentSdkModulePromise) {
+    const dynamicImport = new Function("specifier", "return import(specifier)") as (
+      specifier: string
+    ) => Promise<ClaudeAgentSdkModule>;
+    claudeAgentSdkModulePromise = dynamicImport("@anthropic-ai/claude-agent-sdk");
+  }
+  return claudeAgentSdkModulePromise;
+}
+
+function resolveClaudeCodeExecutablePath(): string | undefined {
+  try {
+    const resolved = require.resolve("@anthropic-ai/claude-agent-sdk/cli.js");
+    const unpacked = resolved.replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`);
+    if (unpacked !== resolved && fs.existsSync(unpacked)) return unpacked;
+    return resolved;
+  } catch {
+    return undefined;
+  }
+}
+
+function buildClaudeAgentAppendPrompt(
+  env: EnvironmentInfo,
+  projectRoot: string,
+  enabledSkills?: Array<{ name: string; content: string }>,
+  availableSkills?: SkillSummary[],
+  projectMemory?: string
+): string {
+  const today = new Date().toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  const platformName = platformLabel(env.platform);
+  const sections: string[] = [];
+
+  sections.push(
+    `You are running inside SnCode (desktop app).
+Environment:
+- Platform: ${platformName} (${env.arch})
+- Shell: ${env.shellName} (${env.shellPath})
+- Working directory: ${projectRoot}
+- Date: ${today}
+
+Response style:
+- Be direct, concise, and action-oriented.
+- When changing code, explain what changed and why.
+- Reference concrete file paths when relevant.
+- Do not invent file contents; inspect before claiming.`
+  );
+
+  if (projectMemory && projectMemory.trim()) {
+    sections.push(`Project memory:\n${projectMemory.trim()}`);
+  }
+
+  if (availableSkills && availableSkills.length > 0) {
+    const skillLines = availableSkills.map((skill) => `- ${skill.name}: ${skill.description}`);
+    sections.push(`Available skills (load when useful):\n${skillLines.join("\n")}`);
+  }
+
+  if (enabledSkills && enabledSkills.length > 0) {
+    for (const skill of enabledSkills) {
+      sections.push(`Enabled skill content (${skill.name}):\n${skill.content}`);
+    }
+  }
+
+  return sections.join("\n\n");
+}
+
+function formatHistoryForClaudeAgentPrompt(history: ThreadMessage[]): string {
+  const lines: string[] = [];
+  lines.push("Conversation history (oldest to newest):");
+  for (const msg of history) {
+    if (msg.role === "tool") {
+      const toolSummary = summarizeHistoryToolMessage(msg);
+      if (toolSummary) {
+        lines.push(`Tool: ${toolSummary}`);
+      }
+      continue;
+    }
+
+    const role =
+      msg.role === "user" ? "User"
+      : msg.role === "assistant" ? "Assistant"
+      : "System";
+    const content = msg.content?.trim() || "(no text)";
+    const imageSummary = msg.images && msg.images.length > 0
+      ? `\n[Attached images: ${msg.images.map((img) => img.name ? `${img.name} (${img.mediaType})` : img.mediaType).join(", ")}]`
+      : "";
+    lines.push(`${role}: ${content}${imageSummary}`);
+  }
+  lines.push("Respond to the latest user request.");
+  return lines.join("\n\n");
+}
+
+function latestUserPrompt(history: ThreadMessage[]): string {
+  for (let i = history.length - 1; i >= 0; i -= 1) {
+    const msg = history[i];
+    if (msg.role !== "user") continue;
+    const text = msg.content?.trim();
+    if (text) return text;
+    if (msg.images && msg.images.length > 0) {
+      return `User shared ${msg.images.length} image(s) and requested help.`;
+    }
+  }
+  return "";
+}
+
+function extractTokensFromUsage(usage: unknown): { inputTokens: number; outputTokens: number } | null {
+  if (!usage || typeof usage !== "object") return null;
+  const u = usage as Record<string, unknown>;
+  const readNumber = (value: unknown): number =>
+    typeof value === "number" && Number.isFinite(value) ? value : 0;
+
+  const inputBase = readNumber(u.input_tokens ?? u.inputTokens);
+  const inputCacheRead = readNumber(u.cache_read_input_tokens ?? u.cacheReadInputTokens);
+  const inputCacheCreate = readNumber(u.cache_creation_input_tokens ?? u.cacheCreationInputTokens);
+  const output = readNumber(u.output_tokens ?? u.outputTokens);
+  const input = inputBase + inputCacheRead + inputCacheCreate;
+
+  if (input === 0 && output === 0) return null;
+  return { inputTokens: input, outputTokens: output };
+}
+
+function extractAssistantTextFromSdkMessage(msg: SDKMessage): string {
+  if (msg.type !== "assistant") return "";
+  const content = (msg as { message?: { content?: unknown[] } }).message?.content;
+  if (!Array.isArray(content)) return "";
+
+  let text = "";
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    if ((block as { type?: string }).type !== "text") continue;
+    const part = (block as { text?: unknown }).text;
+    if (typeof part === "string") text += part;
+  }
+  return text;
+}
+
+function extractAssistantToolUsesFromSdkMessage(msg: SDKMessage): Array<{ id: string; name: string; input: Record<string, unknown> }> {
+  if (msg.type !== "assistant") return [];
+  const content = (msg as { message?: { content?: unknown[] } }).message?.content;
+  if (!Array.isArray(content)) return [];
+
+  const toolUses: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
+  for (const block of content) {
+    if (!block || typeof block !== "object") continue;
+    const rec = block as Record<string, unknown>;
+    if (rec.type !== "tool_use") continue;
+    const id = typeof rec.id === "string" ? rec.id : "";
+    const name = typeof rec.name === "string" ? rec.name : "";
+    if (!id || !name) continue;
+    const input =
+      rec.input && typeof rec.input === "object" && !Array.isArray(rec.input)
+        ? rec.input as Record<string, unknown>
+        : {};
+    toolUses.push({ id, name, input });
+  }
+  return toolUses;
+}
+
+function formatClaudeSdkToolDetail(toolName: string): string {
+  const name = toolName.toLowerCase();
+  if (name === "bash") return "Running shell command";
+  if (name === "read") return "Reading files";
+  if (name === "edit" || name === "multiedit" || name === "write") return "Editing files";
+  if (name === "glob" || name === "grep") return "Searching project";
+  if (name === "task" || name === "agent") return "Running subtask";
+  return toolName;
+}
+
 async function runAnthropicAgent(
   provider: ProviderConfig,
   credential: string,
   input: RunAgentInput
 ): Promise<AgentResult> {
-  const isOAuth = isOAuthCredential(credential);
-
-  let client: Anthropic;
-  if (isOAuth) {
-    const accessToken = await getValidOAuthToken(credential, "anthropic");
-    client = new Anthropic({
-      apiKey: "placeholder",
-      fetch: async (reqInput: string | URL | Request, init?: RequestInit) => {
-        const headers = new Headers(init?.headers);
-        headers.delete("x-api-key");
-        headers.set("authorization", `Bearer ${accessToken}`);
-        headers.set("anthropic-beta", "oauth-2025-04-20,interleaved-thinking-2025-05-14");
-        return globalThis.fetch(reqInput, { ...init, headers });
-      },
-    });
-  } else {
-    client = new Anthropic({ apiKey: credential });
-  }
-
   const env = getEnvironmentInfo();
   const projectMemory = readProjectMemory(input.projectRoot);
-  const systemPrompt = buildSystemPrompt(env, input.projectRoot, input.enabledSkills, input.availableSkills, projectMemory);
-  const tools = buildAnthropicTools(env, input.availableSkills, input.mcpTools);
-
+  const systemPromptAppend = buildClaudeAgentAppendPrompt(
+    env,
+    input.projectRoot,
+    input.enabledSkills,
+    input.availableSkills,
+    projectMemory
+  );
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
-  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
-  const messages: Anthropic.MessageParam[] = toAnthropicMessages(compactedHistory);
+  const preparedHistory = prepareHistoryForRequest(provider, input.history, systemPromptAppend, maxTokens);
+  if (preparedHistory.compactionReport) {
+    input.callbacks.onText(preparedHistory.compactionReport.summary, {
+      toolName: "compact_history",
+      toolDetail: `Auto-compacted context (${preparedHistory.compactionReport.removedCount} messages removed)`,
+      compactionLog: true,
+    });
+  }
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
+  const thinkingLevel = input.settings.thinkingLevel || "none";
+  const effort: "low" | "medium" | "high" | "max" | undefined =
+    thinkingLevel === "none"
+      ? undefined
+      : thinkingLevel === "xhigh"
+        ? "max"
+        : thinkingLevel;
+
+  const sdkEnv: Record<string, string | undefined> = {
+    ...process.env,
+    CLAUDE_AGENT_SDK_CLIENT_APP: "sncode/0.2.2",
+  };
+  if (isOAuthCredential(credential)) {
+    const oauth = await getValidOAuthData(credential, "anthropic");
+    sdkEnv.CLAUDE_CODE_SESSION_ACCESS_TOKEN = oauth.access;
+    delete sdkEnv.ANTHROPIC_API_KEY;
+  } else {
+    sdkEnv.ANTHROPIC_API_KEY = credential;
+    delete sdkEnv.CLAUDE_CODE_SESSION_ACCESS_TOKEN;
+  }
+
+  const { query } = await loadClaudeAgentSdk();
+  const abortController = new AbortController();
+  const externalAbortHandler = () => abortController.abort();
+  input.abortSignal?.addEventListener("abort", externalAbortHandler, { once: true });
+
+  const prompt = input.anthropicSessionId
+    ? latestUserPrompt(preparedHistory.history) || "Continue from the prior conversation and address the latest request."
+    : formatHistoryForClaudeAgentPrompt(preparedHistory.history);
+
+  const claudeCliPath = resolveClaudeCodeExecutablePath();
+  let claudeStderr = "";
+  const appendClaudeStderr = (chunk: string) => {
+    if (!chunk) return;
+    claudeStderr += chunk;
+    if (claudeStderr.length > 16_000) {
+      claudeStderr = claudeStderr.slice(-16_000);
+    }
+  };
+
+  const options: ClaudeAgentOptions = {
+    cwd: input.projectRoot,
+    model: provider.model,
+    maxTurns: maxToolSteps,
+    includePartialMessages: true,
+    tools: { type: "preset", preset: "claude_code" },
+    systemPrompt: { type: "preset", preset: "claude_code", append: systemPromptAppend },
+    settingSources: ["user", "project", "local"],
+    permissionMode: "bypassPermissions",
+    allowDangerouslySkipPermissions: true,
+    resume: input.anthropicSessionId,
+    env: sdkEnv,
+    stderr: appendClaudeStderr,
+    abortController,
+  };
+  if (claudeCliPath) {
+    options.pathToClaudeCodeExecutable = claudeCliPath;
+  }
+  if (thinkingLevel === "none") {
+    options.thinking = { type: "disabled" } as NonNullable<ClaudeAgentOptions["thinking"]>;
+  } else {
+    options.thinking = { type: "adaptive" } as NonNullable<ClaudeAgentOptions["thinking"]>;
+    options.effort = effort;
+  }
+
+  const run = query({ prompt, options });
   let finalText = "";
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
+  let anthropicSessionId = input.anthropicSessionId;
+  let sawTerminalResult = false;
+  const openTools = new Map<string, { pendingId: string; toolName: string; detail: string; startedAt: number }>();
 
-  // Sub-agent context for spawn_task tool calls
-  const subAgentCtx: SubAgentContext = {
-    providers: input.providers,
-    getCredential: input.getCredential,
-    settings: input.settings,
-  };
-
-  for (let step = 0; step < maxToolSteps; step += 1) {
-    if (input.abortSignal?.aborted) throw new Error("Run cancelled");
-
-    let stepText = "";
-    const toolUseBlocks: Array<{ id: string; name: string; input: Record<string, unknown> }> = [];
-    let currentToolId = "";
-    let currentToolName = "";
-    let currentToolInputJson = "";
-    let stepInputTokens = 0;
-    let stepOutputTokens = 0;
-
-    // Build request params, optionally with extended thinking
-    const thinkingLevel = input.settings.thinkingLevel || "none";
-    const anthropicThinkingEnabled = thinkingLevel !== "none";
-    const anthropicBudgetMap: Record<string, number> = { low: 2048, medium: 8192, high: 16384 };
-    const streamParams: Record<string, unknown> = {
-      model: provider.model,
-      max_tokens: anthropicThinkingEnabled ? maxTokens + (anthropicBudgetMap[thinkingLevel] ?? 0) : maxTokens,
-      system: systemPrompt,
-      tools,
-      messages,
-    };
-    if (anthropicThinkingEnabled) {
-      streamParams.thinking = {
-        type: "enabled",
-        budget_tokens: anthropicBudgetMap[thinkingLevel] ?? 8192,
-      };
-    }
-
-    const stream = client.messages.stream(
-      streamParams as Parameters<typeof client.messages.stream>[0],
-      { signal: input.abortSignal }
-    );
-
-    for await (const event of stream) {
+  try {
+    for await (const msg of run) {
       if (input.abortSignal?.aborted) throw new Error("Run cancelled");
 
-      if (event.type === "message_start") {
-        const usage = (event as unknown as { message: { usage?: { input_tokens?: number; output_tokens?: number } } }).message?.usage;
-        if (usage) {
-          stepInputTokens = usage.input_tokens ?? 0;
-          stepOutputTokens = usage.output_tokens ?? 0;
-        }
-      } else if (event.type === "message_delta") {
-        const usage = (event as unknown as { usage?: { input_tokens?: number; output_tokens?: number } }).usage;
-        if (usage) {
-          if (usage.output_tokens) stepOutputTokens = usage.output_tokens;
-        }
-      } else if (event.type === "content_block_start") {
-        if (event.content_block.type === "tool_use") {
-          currentToolId = event.content_block.id;
-          currentToolName = event.content_block.name;
-          currentToolInputJson = "";
-        }
-      } else if (event.type === "content_block_delta") {
-        if (event.delta.type === "text_delta") {
-          stepText += event.delta.text;
+      const maybeSessionId = (msg as { session_id?: unknown }).session_id;
+      if (typeof maybeSessionId === "string" && maybeSessionId.trim()) {
+        anthropicSessionId = maybeSessionId;
+      }
+
+      if (msg.type === "stream_event") {
+        const event = (msg as { event?: { type?: string; delta?: { type?: string; text?: string } } }).event;
+        if (event?.type === "content_block_delta" && event.delta?.type === "text_delta" && typeof event.delta.text === "string") {
           input.callbacks.onChunk(event.delta.text);
-        } else if (event.delta.type === "input_json_delta") {
-          currentToolInputJson += event.delta.partial_json;
         }
-      } else if (event.type === "content_block_stop") {
-        if (currentToolId) {
-          let parsedInput: Record<string, unknown> = {};
-          try {
-            parsedInput = currentToolInputJson ? JSON.parse(currentToolInputJson) : {};
-          } catch { /* empty */ }
-          toolUseBlocks.push({ id: currentToolId, name: currentToolName, input: parsedInput });
-          currentToolId = "";
-          currentToolName = "";
-          currentToolInputJson = "";
+        continue;
+      }
+
+      if (msg.type === "assistant") {
+        const text = extractAssistantTextFromSdkMessage(msg);
+        if (text.trim()) {
+          finalText = text;
+          const tokenMeta = extractTokensFromUsage((msg as { message?: { usage?: unknown } }).message?.usage);
+          if (tokenMeta) {
+            totalInputTokens = tokenMeta.inputTokens;
+            totalOutputTokens = tokenMeta.outputTokens;
+            input.callbacks.onText(text, tokenMeta);
+          } else {
+            input.callbacks.onText(text);
+          }
         }
-      }
-    }
-
-    // No tool calls → final answer
-    if (toolUseBlocks.length === 0) {
-      finalText = stepText;
-      totalInputTokens += stepInputTokens;
-      totalOutputTokens += stepOutputTokens;
-      break;
-    }
-
-    totalInputTokens += stepInputTokens;
-    totalOutputTokens += stepOutputTokens;
-
-    // Emit intermediate text as a stored message so it appears before tool calls
-    if (stepText.trim()) {
-      input.callbacks.onText(stepText, { inputTokens: stepInputTokens, outputTokens: stepOutputTokens });
-    }
-
-    // Build assistant content blocks for the API conversation
-    const assistantContent: Anthropic.ContentBlockParam[] = [];
-    if (stepText) {
-      assistantContent.push({ type: "text", text: stepText });
-    }
-    for (const tool of toolUseBlocks) {
-      assistantContent.push({ type: "tool_use", id: tool.id, name: tool.name, input: tool.input });
-    }
-    messages.push({ role: "assistant", content: assistantContent });
-
-    // Execute tools: emit start (pending card) → execute → emit end (update card with result)
-    // spawn_task calls run in parallel; other tools run sequentially
-    const toolResults: Anthropic.ToolResultBlockParam[] = [];
-    const spawnTasks: Array<{ tool: typeof toolUseBlocks[0]; index: number }> = [];
-    const sequentialTools: Array<{ tool: typeof toolUseBlocks[0]; index: number }> = [];
-
-    for (let ti = 0; ti < toolUseBlocks.length; ti++) {
-      if (toolUseBlocks[ti].name === "spawn_task") {
-        spawnTasks.push({ tool: toolUseBlocks[ti], index: ti });
-      } else {
-        sequentialTools.push({ tool: toolUseBlocks[ti], index: ti });
-      }
-    }
-
-    // Pre-allocate results array
-    const resultsByIndex: Array<{ toolUseId: string; content: string }> = new Array(toolUseBlocks.length);
-
-    // Run sequential tools first
-    for (const { tool, index } of sequentialTools) {
-      if (input.abortSignal?.aborted) throw new Error("Run cancelled");
-      const detail = formatToolDetail(tool.name, tool.input);
-      const pendingId = input.callbacks.onToolStart(tool.name, detail, tool.input);
-      const t0 = Date.now();
-      const result = await executeTool(input.projectRoot, tool.name, tool.input, input.abortSignal, subAgentCtx, pendingId, input.callbacks.onTaskProgress);
-      input.callbacks.onToolEnd(pendingId, tool.name, detail, result, Date.now() - t0);
-      resultsByIndex[index] = { toolUseId: tool.id, content: result };
-    }
-
-    // Run spawn_task calls in parallel (up to maxConcurrentTasks)
-    if (spawnTasks.length > 0) {
-      const maxConcurrent = input.settings.maxConcurrentTasks || 3;
-      const pendingIds: Map<number, string> = new Map();
-
-      // Emit all pending cards first
-      for (const { tool, index } of spawnTasks) {
-        const detail = formatToolDetail(tool.name, tool.input);
-        const pendingId = input.callbacks.onToolStart(tool.name, detail, tool.input);
-        pendingIds.set(index, pendingId);
+        const toolUses = extractAssistantToolUsesFromSdkMessage(msg);
+        for (const toolUse of toolUses) {
+          if (openTools.has(toolUse.id)) continue;
+          const detail = formatToolDetail(toolUse.name, toolUse.input);
+          const pendingId = input.callbacks.onToolStart(toolUse.name, detail, toolUse.input);
+          openTools.set(toolUse.id, {
+            pendingId,
+            toolName: toolUse.name,
+            detail,
+            startedAt: Date.now(),
+          });
+        }
+        continue;
       }
 
-      // Process in batches of maxConcurrent
-      for (let batch = 0; batch < spawnTasks.length; batch += maxConcurrent) {
-        const batchItems = spawnTasks.slice(batch, batch + maxConcurrent);
-        const batchPromises = batchItems.map(async ({ tool, index }) => {
-          const t0 = Date.now();
-          const pId = pendingIds.get(index)!;
-          const result = await executeTool(input.projectRoot, tool.name, tool.input, input.abortSignal, subAgentCtx, pId, input.callbacks.onTaskProgress);
-          const detail = formatToolDetail(tool.name, tool.input);
-          input.callbacks.onToolEnd(pId, tool.name, detail, result, Date.now() - t0);
-          resultsByIndex[index] = { toolUseId: tool.id, content: result };
-        });
-        await Promise.all(batchPromises);
+      if (msg.type === "tool_progress") {
+        if (!openTools.has(msg.tool_use_id)) {
+          const toolName = msg.tool_name || "tool";
+          const detail = formatClaudeSdkToolDetail(toolName);
+          const pendingId = input.callbacks.onToolStart(toolName, detail);
+          openTools.set(msg.tool_use_id, {
+            pendingId,
+            toolName,
+            detail,
+            startedAt: Date.now(),
+          });
+        }
+        continue;
+      }
+
+      if (msg.type === "tool_use_summary") {
+        const summary = msg.summary || "Completed.";
+        for (const toolUseId of msg.preceding_tool_use_ids || []) {
+          const pending = openTools.get(toolUseId);
+          if (!pending) continue;
+          input.callbacks.onToolEnd(
+            pending.pendingId,
+            pending.toolName,
+            pending.detail,
+            summary,
+            Date.now() - pending.startedAt
+          );
+          openTools.delete(toolUseId);
+        }
+        continue;
+      }
+
+      if (msg.type === "result") {
+        sawTerminalResult = true;
+        const tokenMeta = extractTokensFromUsage((msg as SDKResultMessage).usage);
+        if (tokenMeta) {
+          totalInputTokens = tokenMeta.inputTokens;
+          totalOutputTokens = tokenMeta.outputTokens;
+        }
+        if (msg.subtype === "success" && msg.result?.trim()) {
+          finalText = msg.result;
+        } else if (msg.subtype !== "success" && msg.errors && msg.errors.length > 0) {
+          finalText = msg.errors.join("\n");
+        }
+        continue;
       }
     }
-
-    // Build final tool results in original order
-    for (let ti = 0; ti < toolUseBlocks.length; ti++) {
-      toolResults.push({ type: "tool_result", tool_use_id: resultsByIndex[ti].toolUseId, content: resultsByIndex[ti].content });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (input.abortSignal?.aborted || /abort|cancel/i.test(message)) {
+      throw new Error("Run cancelled");
     }
-
-    messages.push({ role: "user", content: toolResults });
-
-    if (step === maxToolSteps - 1) {
-      finalText = stepText || "Reached maximum tool steps. Please continue with a follow-up message.";
+    if (/Claude Code process (?:exited|terminated)/i.test(message)) {
+      const stderrTail = claudeStderr.trim();
+      if (stderrTail) {
+        const lastLines = stderrTail.split(/\r?\n/).filter(Boolean).slice(-12).join("\n");
+        throw new Error(`${message}\nClaude Code stderr (tail):\n${lastLines}`);
+      }
     }
+    throw error;
+  } finally {
+    input.abortSignal?.removeEventListener("abort", externalAbortHandler);
+    if (!sawTerminalResult || input.abortSignal?.aborted) {
+      try {
+        run.close();
+      } catch {
+        // ignore close errors
+      }
+    }
+    for (const pending of openTools.values()) {
+      input.callbacks.onToolEnd(
+        pending.pendingId,
+        pending.toolName,
+        pending.detail,
+        "Completed.",
+        Date.now() - pending.startedAt
+      );
+    }
+    openTools.clear();
   }
 
-  return { text: finalText, inputTokens: totalInputTokens, outputTokens: totalOutputTokens };
+  return {
+    text: finalText || "No response from model.",
+    inputTokens: totalInputTokens,
+    outputTokens: totalOutputTokens,
+    anthropicSessionId,
+  };
 }
 
 /* ── OpenAI streaming agentic loop ── */
@@ -2038,8 +2224,15 @@ async function runOpenAIAgent(
   const tools = buildOpenAITools(env, input.availableSkills, input.mcpTools);
 
   const maxTokens = input.settings.maxTokens || DEFAULT_MAX_TOKENS;
-  const compactedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
-  const messages = toOpenAIMessages(compactedHistory, systemPrompt);
+  const preparedHistory = prepareHistoryForRequest(provider, input.history, systemPrompt, maxTokens);
+  if (preparedHistory.compactionReport) {
+    input.callbacks.onText(preparedHistory.compactionReport.summary, {
+      toolName: "compact_history",
+      toolDetail: `Auto-compacted context (${preparedHistory.compactionReport.removedCount} messages removed)`,
+      compactionLog: true,
+    });
+  }
+  const messages = toOpenAIMessages(preparedHistory.history, systemPrompt);
   const maxToolSteps = input.settings.maxToolSteps || DEFAULT_MAX_TOOL_STEPS;
   let finalText = "";
   let totalInputTokens = 0;
@@ -2204,6 +2397,7 @@ export interface AgentResult {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  anthropicSessionId?: string;
 }
 
 /* ── Main entry point ── */

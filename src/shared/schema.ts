@@ -17,6 +17,7 @@ export const threadUpdateInputSchema = z.object({
   threadId: z.string().trim().min(1),
   title: z.string().trim().min(1).max(160).optional(),
   codexThreadId: z.string().trim().min(1).optional(),
+  anthropicSessionId: z.string().trim().min(1).optional(),
   lastModel: z.string().trim().min(1).max(120).optional(),
 });
 
@@ -28,8 +29,8 @@ export const imageAttachmentSchema = z.object({
 
 export const sendMessageInputSchema = z.object({
   threadId: z.string().trim().min(1),
-  content: z.string().max(12000),
-  displayContent: z.string().max(12000).optional(),
+  content: z.string(),
+  displayContent: z.string().optional(),
   images: z.array(imageAttachmentSchema).max(10).optional(),
   permissionMode: z.enum(["full", "approve"]).optional(),
 }).refine(

@@ -118,7 +118,7 @@ class CodexAppServerClient {
       clientInfo: {
         name: "sncode_desktop",
         title: "SnCode Desktop",
-        version: "0.2.0",
+        version: "0.2.2",
       },
       capabilities: {
         experimentalApi: true,

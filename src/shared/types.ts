@@ -58,6 +58,8 @@ export interface ThreadMessage {
     toolArgs?: Record<string, unknown>;
     /** Optional user-visible text when underlying sent content differs (e.g. @file mentions). */
     userDisplayContent?: string;
+    /** Marks a message as a compaction log entry intended for UI visibility only (excluded from model context). */
+    compactionLog?: boolean;
   };
 }
 
@@ -67,6 +69,8 @@ export interface Thread {
   title: string;
   /** Backing Codex app-server thread id (when using codex provider integration) */
   codexThreadId?: string;
+  /** Backing Claude Agent SDK session id (when using anthropic provider integration) */
+  anthropicSessionId?: string;
   /** Last model used in this thread (for thread-scoped model stickiness in UI) */
   lastModel?: string;
   createdAt: string;
@@ -157,6 +161,7 @@ export interface ThreadUpdateInput {
   threadId: string;
   title?: string;
   codexThreadId?: string;
+  anthropicSessionId?: string;
   lastModel?: string;
 }
 
@@ -193,11 +198,16 @@ export interface AgentMessageEvent {
   message: ThreadMessage;
 }
 
+export interface AgentHandoffEvent {
+  threadId: string;
+}
+
 export interface AgentEventMap {
   "agent:status": AgentStatusEvent;
   "agent:chunk": AgentChunkEvent;
   "agent:tool": AgentToolEvent;
   "agent:message": AgentMessageEvent;
+  "agent:handoff": AgentHandoffEvent;
 }
 
 export interface GitStatusInfo {
@@ -296,6 +306,7 @@ export interface SncodeApi {
   setProviderCredential: (payload: ProviderCredentialInput) => Promise<ProviderConfig[]>;
   sendMessage: (payload: SendMessageInput) => Promise<AppState>;
   cancelRun: (threadId: string) => Promise<void>;
+  requestRunHandoff: (threadId: string) => Promise<void>;
   openExternal: (url: string) => Promise<void>;
   getGitBranches: (projectPath: string) => Promise<{ current: string; branches: string[] }>;
   getGitStatus: (projectPath: string) => Promise<GitStatusInfo>;

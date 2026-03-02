@@ -6,8 +6,10 @@ import { ProviderId } from "../shared/types";
 /* ── Anthropic OAuth (Claude Max/Pro subscription) ── */
 
 const ANTHROPIC_CLIENT_ID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e";
-const ANTHROPIC_REDIRECT_URI = "https://console.anthropic.com/oauth/code/callback";
-const ANTHROPIC_TOKEN_URL = "https://console.anthropic.com/v1/oauth/token";
+const ANTHROPIC_REDIRECT_URI = "https://platform.claude.com/oauth/code/callback";
+const ANTHROPIC_TOKEN_URL = "https://platform.claude.com/v1/oauth/token";
+const ANTHROPIC_AUTHORIZE_URL = "https://claude.ai/oauth/authorize";
+const ANTHROPIC_PERSONAL_SCOPES = "user:profile user:inference user:sessions:claude_code user:mcp_servers";
 
 /* ── OpenAI/Codex OAuth (ChatGPT Plus/Pro subscription) ── */
 
@@ -126,13 +128,13 @@ export async function startAnthropicOAuth(): Promise<{ url: string }> {
     client_id: ANTHROPIC_CLIENT_ID,
     response_type: "code",
     redirect_uri: ANTHROPIC_REDIRECT_URI,
-    scope: "org:create_api_key user:profile user:inference",
+    scope: ANTHROPIC_PERSONAL_SCOPES,
     code_challenge: challenge,
     code_challenge_method: "S256",
     state: verifier,
   });
 
-  const url = `https://claude.ai/oauth/authorize?${params.toString()}`;
+  const url = `${ANTHROPIC_AUTHORIZE_URL}?${params.toString()}`;
   await shell.openExternal(url);
   return { url };
 }
@@ -181,6 +183,7 @@ export async function refreshAnthropicToken(current: OAuthData): Promise<OAuthDa
       grant_type: "refresh_token",
       refresh_token: current.refresh,
       client_id: ANTHROPIC_CLIENT_ID,
+      scope: ANTHROPIC_PERSONAL_SCOPES,
     }),
   });
 

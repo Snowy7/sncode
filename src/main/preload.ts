@@ -20,6 +20,7 @@ const api: SncodeApi = {
     ipcRenderer.invoke("provider:credential:set", payload),
   sendMessage: (payload: SendMessageInput) => ipcRenderer.invoke("message:send", payload),
   cancelRun: (threadId: string) => ipcRenderer.invoke("run:cancel", threadId),
+  requestRunHandoff: (threadId: string) => ipcRenderer.invoke("run:handoff", threadId),
   openExternal: (url: string) => ipcRenderer.invoke("open-external", url),
   getGitBranches: (projectPath: string) => ipcRenderer.invoke("git:branches", projectPath),
   getGitStatus: (projectPath: string) => ipcRenderer.invoke("git:status", projectPath),
